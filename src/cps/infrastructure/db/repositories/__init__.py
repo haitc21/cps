@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from cps.infrastructure.db.repositories.operations import OperationRepository
 from cps.infrastructure.db.repositories.providers import (
     AddConnectionCommand,
     AddCredentialCommand,
@@ -16,6 +17,7 @@ __all__ = [
     "AddCredentialCommand",
     "AddProviderCommand",
     "DuplicateProviderConnectionError",
+    "OperationRepository",
     "ProviderPersistenceError",
     "ProviderRepository",
 ]
