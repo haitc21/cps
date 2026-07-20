@@ -6,6 +6,8 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from cps.infrastructure.db.repositories.providers import ProviderRepository
+
 
 class SqlAlchemyUnitOfWork:
     """Manage one async session lifecycle per context block."""
@@ -80,6 +82,10 @@ class SqlAlchemyUnitOfWork:
             msg = "Unit of work is not active"
             raise RuntimeError(msg)
         return self._session
+
+    @property
+    def providers(self) -> ProviderRepository:
+        return ProviderRepository(self.session)
 
     async def commit(self) -> None:
         if self._session is None:

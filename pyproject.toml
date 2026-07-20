@@ -17,6 +17,8 @@ dependencies = [
   "alembic==1.18.5",
   "psycopg[binary,pool]==3.3.4",
   "aio-pika==10.0.1",
+  "uuid6>=2025.0.1",
+  "cryptography>=49.0.0",
 ]
 
 [project.optional-dependencies]
