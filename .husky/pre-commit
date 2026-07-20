@@ -15,8 +15,8 @@ if [ "$guard_status" -ne 0 ]; then
   exit "$guard_status"
 fi
 
-run_uv run ruff format --check src tests &&
-run_uv run ruff check src tests &&
+run_uv run ruff format --check src tests alembic &&
+run_uv run ruff check src tests alembic &&
 run_uv run mypy &&
 run_uv run pytest -q &&
 run_uv run python -m cps.contracts.validate_contracts || exit 1

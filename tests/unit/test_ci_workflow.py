@@ -11,8 +11,8 @@ def test_husky_pre_commit_defines_required_quality_gates() -> None:
     hook = (ROOT / ".husky" / "pre-commit").read_text(encoding="utf-8")
     required = [
         "assert_staged_worktree_sync",
-        "ruff format --check",
-        "ruff check",
+        "ruff format --check src tests alembic",
+        "ruff check src tests alembic",
         "mypy",
         "pytest",
         "run_detect_secrets_on_staged",
@@ -20,6 +20,15 @@ def test_husky_pre_commit_defines_required_quality_gates() -> None:
     ]
     missing = [item for item in required if item not in hook]
     assert missing == [], f"Husky hook missing gates: {missing}"
+
+
+def test_husky_pre_commit_ruff_order_includes_alembic() -> None:
+    hook = (ROOT / ".husky" / "pre-commit").read_text(encoding="utf-8")
+    format_cmd = "ruff format --check src tests alembic"
+    lint_cmd = "ruff check src tests alembic"
+    assert format_cmd in hook
+    assert lint_cmd in hook
+    assert hook.index(format_cmd) < hook.index(lint_cmd)
 
 
 def test_github_actions_workflows_are_absent() -> None:

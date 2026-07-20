@@ -11,6 +11,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from cps.config import get_settings
+from cps.infrastructure.db import models as _models  # noqa: F401
+from cps.infrastructure.db.base import Base
 from cps.runtime import configure_event_loop_policy
 
 configure_event_loop_policy()
@@ -19,7 +21,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def get_url() -> str:
