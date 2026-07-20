@@ -1,0 +1,1 @@
+"""Canonical message contract package."""
