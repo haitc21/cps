@@ -8,8 +8,8 @@
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-101 — Canonical message envelope and schemas | 8 | Unassigned | OPS-101 | Ready |
-| CPS-102 — Common error and API response model | 5 | Unassigned | OPS-103 | Ready |
+| CPS-101 — Canonical message envelope and schemas | 8 | Unassigned | OPS-101 | Done |
+| CPS-102 — Common error and API response model | 5 | Unassigned | OPS-103 | Done |
 
 **Total:** 13 points.
 
@@ -50,9 +50,43 @@ These stories retain their product-backlog priority and points. They require a s
 
 ## Review evidence
 
-- Test counts: fill only after commands run.
-- Contract manifest SHA-256: fill only after CPS-102 refreshes the final manifest.
-- Known limitations: no database domain, provider CRUD, RabbitMQ consumer, inventory, or OpenStack call.
+- Verification date: **2026-07-20** (Sprint 1A Task 5, branch `main`, HEAD `ba564e5`).
+- Story commits:
+  - CPS-101 — `ba564e5` (`feat: initialize CPS service`; envelope, fixtures, JSON Schemas delivered in same commit)
+  - CPS-102 — `ba564e5` (common error contract, API handlers, error fixture/schema in same commit)
+- Final DoD gates (fresh run, exit 0 unless noted):
+  - `py -3.12 -m uv lock --check` — ok
+  - `py -3.12 -m uv sync --frozen --all-extras` — ok
+  - `py -3.12 -m uv run ruff format --check src tests` — ok
+  - `py -3.12 -m uv run ruff check src tests` — ok
+  - `py -3.12 -m uv run mypy` — ok (31 source files)
+  - `py -3.12 -m uv run pytest -q` — **76 passed, 5 skipped**
+  - `py -3.12 -m uv run python -m cps.contracts.validate_contracts` — ok (**8 manifest-managed contract files**)
+  - read-only secret verification — ok (`detect-secrets-hook --baseline .secrets.baseline` per tracked file from `git ls-files -z`, repo exclude regex, NUL-safe argv; **81 files scanned**; baseline SHA unchanged `d44dc71f8b1ce2d873ce45d7a13781e0a361b68979a137a8d37a06e031e81bde`)
+  - `git diff --check` — ok
+  - `docker build -t cps:sprint1a .` — ok
+  - host `.husky/pre-commit` — **exit 0**
+- Contract manifest SHA-256 (`src/cps/contracts/checksums.json`): `79f4d97a07e53357210ede4f905c65d905776aa12952e06280b5ad7d6532bc43` (959 bytes).
+- Alembic: empty Sprint 0 baseline only; `alembic current` exits 0 — no Sprint 1B domain migrations applied.
+- Warnings: 1 pre-existing `StarletteDeprecationWarning` (httpx vs httpx2 in FastAPI testclient).
+- Known limitations:
+  - No provider connection CRUD, credential storage domain, or CPS → OPS runtime integration in Sprint 1A.
+  - No outbox/inbox, RabbitMQ consumer, or operation persistence (deferred CPS-103..106).
+  - No OpenStack calls from CPS (by design).
+  - Alembic/SQLAlchemy present from Sprint 0 scaffold only; Sprint 1A adds contracts/errors only.
+
+## Sprint Review
+
+- CPS-101 delivered canonical `MessageEnvelope`, five golden fixtures, exported JSON Schema, and manifest coverage for fixtures and schemas.
+- CPS-102 delivered `CommonError`, domain error types, FastAPI handlers for validation/not-found/conflict/capability/provider/timeout/internal paths, and error fixture/schema in the manifest.
+- OPS-101 and OPS-103 completed in sibling OPS repo; cross-repo byte parity of manifest verified during Task 5.
+- All Sprint 1A committed stories meet Definition of Done with fresh gate evidence.
+
+## Sprint Retrospective
+
+- Keep: contract-first TDD; checksum manifest over fixtures and jsonschema; forbidden-key fixture tests; Husky as local quality gate.
+- Improve: split story commits per canonical plan boundary when history allows (CPS-101/102 landed in one initialize commit); use read-only `detect-secrets-hook` full-tracked verification (not `scan --baseline`) for evidence gates.
+- Sprint 1B handoff: produce a separate reviewed plan for CPS-103..106 before any database/messaging scaffold; OPS-102/104 remain whole (topology + dispatch together).
 
 ## Implementation plan
 
