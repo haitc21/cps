@@ -88,6 +88,14 @@ These stories retain their product-backlog priority and points. They require a s
 - Improve: split story commits per canonical plan boundary when history allows (CPS-101/102 landed in one initialize commit); use read-only `detect-secrets-hook` full-tracked verification (not `scan --baseline`) for evidence gates.
 - Sprint 1B handoff: produce a separate reviewed plan for CPS-103..106 before any database/messaging scaffold; OPS-102/104 remain whole (topology + dispatch together).
 
-## Implementation plan
+## Sprint 1B
+
+Sprint 1A is closed. Sprint 1B backlog and delivery order: `plan/sprints/sprint-1b.md`.
+
+Executable implementation plan (review before code):
+
+- Canonical: `docs/superpowers/plans/2026-07-20-sprint-1b-persistence-operations-messaging.md`
+
+## Implementation plan (Sprint 1A)
 
 Canonical: `docs/superpowers/plans/2026-07-17-sprint-1-contracts-operations-messaging.md`
