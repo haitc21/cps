@@ -29,3 +29,7 @@ class UnsafeEventDetailsError(Exception):
 
 class OperationPersistenceError(Exception):
     """Raised when operation persistence fails for a non-concurrency reason."""
+
+
+class IdempotencyConflictError(Exception):
+    """Raised when an idempotency key is reused with a different request payload."""

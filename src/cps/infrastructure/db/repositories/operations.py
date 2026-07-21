@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import CursorResult, func, select, update
@@ -16,6 +17,11 @@ from cps.infrastructure.db.models.operation_events import OperationEvent
 from cps.infrastructure.db.models.operations import Operation
 
 _OPERATION_EVENT_SEQUENCE_CONSTRAINT = "uq_operation_events_operation_sequence"
+_OPERATIONS_IDEMPOTENCY_CONSTRAINT = "uq_operations_idempotency"
+
+
+class IdempotencyScopeConflictError(Exception):
+    """Raised when an idempotency scope insert races with a concurrent creator."""
 
 
 class OperationRepository:
@@ -33,6 +39,55 @@ class OperationRepository:
     async def get_operation(self, operation_id: uuid.UUID) -> Operation | None:
         result = await self._session.execute(select(Operation).where(Operation.id == operation_id))
         return result.scalar_one_or_none()
+
+    async def get_by_idempotency_scope(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        operation_type: str,
+        idempotency_key: str,
+    ) -> Operation | None:
+        result = await self._session.execute(
+            select(Operation).where(
+                Operation.provider_connection_id == provider_connection_id,
+                Operation.operation_type == operation_type,
+                Operation.idempotency_key == idempotency_key,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def insert_operation(
+        self,
+        *,
+        operation_id: uuid.UUID,
+        provider_connection_id: uuid.UUID,
+        operation_type: str,
+        request_payload: dict[str, Any],
+        request_fingerprint: str,
+        correlation_id: uuid.UUID,
+        idempotency_key: str | None = None,
+        causation_id: uuid.UUID | None = None,
+        actor_context: dict[str, Any] | None = None,
+        timeout_at: datetime | None = None,
+    ) -> Operation:
+        operation = Operation(
+            id=operation_id,
+            provider_connection_id=provider_connection_id,
+            operation_type=operation_type,
+            state=OperationState.ACCEPTED,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
+            request_payload=request_payload,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            actor_context=actor_context,
+            timeout_at=timeout_at,
+            version=1,
+        )
+        async with self._session.begin_nested():
+            self._session.add(operation)
+            await self._flush_or_raise()
+        return operation
 
     async def get_events(self, operation_id: uuid.UUID) -> list[OperationEvent]:
         result = await self._session.execute(
@@ -175,7 +230,10 @@ def _raise_from_database_error(exc: DBAPIError) -> None:
         if constraint_name == _OPERATION_EVENT_SEQUENCE_CONSTRAINT:
             msg = "concurrent update detected"
             raise ConcurrentUpdateError(msg)
+        if constraint_name == _OPERATIONS_IDEMPOTENCY_CONSTRAINT:
+            msg = "idempotency scope already exists"
+            raise IdempotencyScopeConflictError(msg) from None
         msg = "operation persistence failed"
-        raise OperationPersistenceError(msg)
+        raise OperationPersistenceError(msg) from None
     msg = "operation persistence failed"
-    raise OperationPersistenceError(msg)
+    raise OperationPersistenceError(msg) from None
