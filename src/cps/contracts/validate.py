@@ -7,6 +7,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from cps.contracts.semantic import validate_contract_semantics
+
 CONTRACTS_ROOT = Path(__file__).resolve().parent
 MANIFEST_PATH = CONTRACTS_ROOT / "checksums.json"
 
@@ -49,6 +51,9 @@ def validate_contract_tree(root: Path | None = None) -> ValidationResult:
         return ValidationResult(False, len(computed), "invalid checksums.json")
     if manifest.get("files") != computed:
         return ValidationResult(False, len(computed), "contract checksum mismatch")
+    _, semantic_error = validate_contract_semantics(base)
+    if semantic_error is not None:
+        return ValidationResult(False, len(computed), semantic_error)
     return ValidationResult(True, len(computed))
 
 

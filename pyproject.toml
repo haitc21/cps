@@ -69,3 +69,8 @@ warn_unused_configs = true
 [tool.coverage.run]
 source = ["cps"]
 branch = true
+
+[dependency-groups]
+dev = [
+    "types-jsonschema>=4.25,<5",
+]
