@@ -1,0 +1,1 @@
+"""CPS RabbitMQ infrastructure adapters."""

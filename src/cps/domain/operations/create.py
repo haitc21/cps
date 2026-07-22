@@ -13,7 +13,9 @@ from cps.infrastructure.db.models.operations import Operation
 from cps.infrastructure.db.repositories.operations import IdempotencyScopeConflictError
 
 if TYPE_CHECKING:
+    from cps.domain.messaging.outbox import OutboxDraft
     from cps.infrastructure.db.repositories.operations import OperationRepository
+    from cps.infrastructure.db.repositories.outbox import OutboxRepository
 
 
 async def create_operation_idempotent(
@@ -27,8 +29,17 @@ async def create_operation_idempotent(
     causation_id: uuid.UUID | None = None,
     actor_context: dict[str, Any] | None = None,
     timeout_at: datetime | None = None,
+    operation_id: uuid.UUID | None = None,
+    outbox_repository: OutboxRepository | None = None,
+    outbox_draft: OutboxDraft | None = None,
 ) -> Operation:
     """Create an operation or return the existing row for the same idempotency scope."""
+    if (outbox_repository is None) != (outbox_draft is None):
+        msg = "outbox repository and draft must be provided together"
+        raise OperationPersistenceError(msg)
+    if operation_id is not None and operation_id.version != 7:
+        msg = "operation id must be UUIDv7"
+        raise OperationPersistenceError(msg)
     fingerprint = canonical_fingerprint(request_payload)
 
     if idempotency_key is not None:
@@ -42,8 +53,8 @@ async def create_operation_idempotent(
             return existing
 
     try:
-        return await repository.insert_operation(
-            operation_id=new_uuid7(),
+        operation = await repository.insert_operation(
+            operation_id=operation_id or new_uuid7(),
             provider_connection_id=provider_connection_id,
             operation_type=operation_type,
             request_payload=request_payload,
@@ -54,6 +65,12 @@ async def create_operation_idempotent(
             actor_context=actor_context,
             timeout_at=timeout_at,
         )
+        if outbox_repository is not None and outbox_draft is not None:
+            if outbox_draft.aggregate_id != operation.id:
+                msg = "outbox aggregate id must match operation id"
+                raise OperationPersistenceError(msg)
+            await outbox_repository.add(outbox_draft)
+        return operation
     except IdempotencyScopeConflictError:
         if idempotency_key is None:
             msg = "operation persistence failed"

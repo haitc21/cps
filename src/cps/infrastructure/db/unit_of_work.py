@@ -7,6 +7,7 @@ from types import TracebackType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from cps.infrastructure.db.repositories.operations import OperationRepository
+from cps.infrastructure.db.repositories.outbox import OutboxRepository
 from cps.infrastructure.db.repositories.providers import ProviderRepository
 
 
@@ -91,6 +92,10 @@ class SqlAlchemyUnitOfWork:
     @property
     def operations(self) -> OperationRepository:
         return OperationRepository(self.session)
+
+    @property
+    def outbox(self) -> OutboxRepository:
+        return OutboxRepository(self.session)
 
     async def commit(self) -> None:
         if self._session is None:
