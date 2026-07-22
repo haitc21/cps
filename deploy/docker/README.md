@@ -13,7 +13,7 @@ All published ports bind to `127.0.0.1` and are not exposed to the LAN.
 Optionally copy `.env.example` to `.env` and change the development passwords,
 then run:
 
-```powershell
+```bash
 docker compose up -d --wait
 docker compose ps
 ```
@@ -41,9 +41,10 @@ CPS readiness (`/health/ready`) depends on PostgreSQL and RabbitMQ only.
 Valkey remains available for future CMP services and is not a CPS readiness
 dependency.
 
-## Stop and reset
+## Stop
 
-```powershell
+```bash
 docker compose down
-docker compose down --volumes  # also deletes local development data
 ```
+
+`docker compose down` stops containers and preserves named volumes.
