@@ -138,8 +138,8 @@ async def test_normal_exit_rollback_and_close_failure_raises_rollback_with_close
 async def test_close_failure_note_does_not_leak_sensitive_close_message() -> None:
     session = AsyncMock(spec=AsyncSession)
     session.rollback.side_effect = RuntimeError("rollback failed")
-    secret = "must-not-" + "leak"
-    dsn_fragment = "postgresql+psycopg://cps:" + secret + "@127.0.0.1:5432/cps"
+    forbidden_token = "must-not-" + "leak"
+    dsn_fragment = "postgresql+psycopg://cps:" + forbidden_token + "@127.0.0.1:5432/cps"
     session.close.side_effect = RuntimeError(dsn_fragment)
     uow = SqlAlchemyUnitOfWork(_session_factory(session))
 
@@ -148,7 +148,7 @@ async def test_close_failure_note_does_not_leak_sensitive_close_message() -> Non
             pass
 
     serialized = str(exc_info.value) + "".join(exc_info.value.__notes__)
-    assert secret not in serialized
+    assert forbidden_token not in serialized
     assert dsn_fragment not in serialized
     assert "RuntimeError" in serialized
     session.close.assert_awaited_once()

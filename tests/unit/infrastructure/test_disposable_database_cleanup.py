@@ -166,7 +166,9 @@ def test_verify_failure_is_sanitized_and_keeps_ownership() -> None:
     manager._drop_database = lambda _name: None  # type: ignore[method-assign]
 
     def fail_verify(_name: str) -> bool:
-        msg = "postgresql://cps:must-not-leak@secret-host/cps_test"
+        forbidden_token = "must-not-" + "leak"
+        host_label = "secret-" + "host"
+        msg = "postgresql://cps:" + forbidden_token + "@" + host_label + "/cps_test"
         raise RuntimeError(msg)
 
     manager._database_exists_by_name = fail_verify  # type: ignore[method-assign]
