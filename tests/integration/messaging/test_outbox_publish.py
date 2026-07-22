@@ -236,8 +236,8 @@ async def test_two_workers_claim_disjoint_rows_and_expired_lease_is_reclaimable(
 async def test_stale_finalize_cannot_overwrite_reclaimed_lease(
     db_session_factory,
 ) -> None:
-    now = datetime.now(UTC)
     draft = _draft(new_uuid7())
+    now = draft.occurred_at
     insert_uow = SqlAlchemyUnitOfWork(db_session_factory)
     async with insert_uow:
         await insert_uow.outbox.add(draft)
@@ -245,11 +245,11 @@ async def test_stale_finalize_cannot_overwrite_reclaimed_lease(
 
     first_uow = SqlAlchemyUnitOfWork(db_session_factory)
     async with first_uow:
-        first = (
-            await first_uow.outbox.claim_due(
-                claimed_by="publisher-a", batch_size=1, now=now, max_attempts=3
-            )
-        )[0]
+        first_claims = await first_uow.outbox.claim_due(
+            claimed_by="publisher-a", batch_size=1, now=now, max_attempts=3
+        )
+        assert len(first_claims) == 1
+        first = first_claims[0]
         await first_uow.commit()
     second_uow = SqlAlchemyUnitOfWork(db_session_factory)
     async with second_uow:

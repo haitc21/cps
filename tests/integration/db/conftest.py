@@ -60,8 +60,7 @@ def run_alembic(database_url: str, revision: str) -> None:
         command.downgrade(config, revision)
 
 
-@pytest.fixture(scope="session")
-def integration_template_database_url() -> str:
+def require_integration_template_database_url() -> str:
     if os.getenv("CPS_RUN_INTEGRATION", "0") != "1":
         pytest.skip("integration disabled; set CPS_RUN_INTEGRATION=1")
     template_url = os.getenv("CPS_TEST_DATABASE_URL")
@@ -69,6 +68,11 @@ def integration_template_database_url() -> str:
         pytest.fail("CPS_TEST_DATABASE_URL is required when CPS_RUN_INTEGRATION=1")
     validate_test_database_url(template_url)
     return template_url
+
+
+@pytest.fixture(scope="session")
+def integration_template_database_url() -> str:
+    return require_integration_template_database_url()
 
 
 @pytest.fixture(scope="session")

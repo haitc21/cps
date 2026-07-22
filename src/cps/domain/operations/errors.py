@@ -31,5 +31,9 @@ class OperationPersistenceError(Exception):
     """Raised when operation persistence fails for a non-concurrency reason."""
 
 
+class EventOwnershipMismatchError(Exception):
+    """Raised when an event does not belong to the referenced operation scope."""
+
+
 class IdempotencyConflictError(Exception):
     """Raised when an idempotency key is reused with a different request payload."""

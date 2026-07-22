@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import uuid
 from datetime import datetime
 from typing import Any
@@ -11,10 +12,15 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from cps.domain.operations.errors import ConcurrentUpdateError, OperationPersistenceError
-from cps.domain.operations.event_details import SafeEventDetails, materialize_event_details
+from cps.domain.operations.event_details import (
+    SafeEventDetails,
+    materialize_event_details,
+    validate_event_details,
+)
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.models.operation_events import OperationEvent
 from cps.infrastructure.db.models.operations import Operation
+from cps.infrastructure.db.models.provider_connections import ProviderConnection
 
 _OPERATION_EVENT_SEQUENCE_CONSTRAINT = "uq_operation_events_operation_sequence"
 _OPERATIONS_IDEMPOTENCY_CONSTRAINT = "uq_operations_idempotency"
@@ -89,6 +95,15 @@ class OperationRepository:
             await self._flush_or_raise()
         return operation
 
+    async def get_provider_connection(
+        self,
+        connection_id: uuid.UUID,
+    ) -> ProviderConnection | None:
+        result = await self._session.execute(
+            select(ProviderConnection).where(ProviderConnection.id == connection_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_events(self, operation_id: uuid.UUID) -> list[OperationEvent]:
         result = await self._session.execute(
             select(OperationEvent)
@@ -128,6 +143,118 @@ class OperationRepository:
                 "state": to_state,
             },
         )
+        await self._flush_or_raise()
+        refreshed = await self.get_operation(operation.id)
+        if refreshed is None:
+            msg = "operation not found"
+            raise OperationPersistenceError(msg)
+        return refreshed
+
+    async def apply_terminal_completion(
+        self,
+        *,
+        operation: Operation,
+        expected_version: int,
+        result_payload: dict[str, Any],
+        event_id: uuid.UUID,
+        event_type: str,
+        message_id: uuid.UUID | None,
+        from_state: OperationState,
+        to_state: OperationState,
+    ) -> Operation:
+        sequence = await self._next_sequence(operation.id)
+        event = OperationEvent(
+            id=event_id,
+            operation_id=operation.id,
+            sequence=sequence,
+            event_type=event_type,
+            from_state=from_state,
+            to_state=to_state,
+            message_id=message_id,
+            details=materialize_event_details(validate_event_details({"result": result_payload})),
+        )
+        self._session.add(event)
+        await self._update_operation(
+            operation_id=operation.id,
+            expected_version=expected_version,
+            values={
+                "state": to_state,
+                "result_payload": copy.deepcopy(result_payload),
+            },
+        )
+        await self._flush_or_raise()
+        refreshed = await self.get_operation(operation.id)
+        if refreshed is None:
+            msg = "operation not found"
+            raise OperationPersistenceError(msg)
+        return refreshed
+
+    async def apply_terminal_failure(
+        self,
+        *,
+        operation: Operation,
+        expected_version: int,
+        error_payload: dict[str, Any],
+        event_id: uuid.UUID,
+        event_type: str,
+        message_id: uuid.UUID | None,
+        from_state: OperationState,
+        to_state: OperationState,
+        provider_request_id: str | None = None,
+    ) -> Operation:
+        sequence = await self._next_sequence(operation.id)
+        event = OperationEvent(
+            id=event_id,
+            operation_id=operation.id,
+            sequence=sequence,
+            event_type=event_type,
+            from_state=from_state,
+            to_state=to_state,
+            message_id=message_id,
+            details=materialize_event_details(
+                validate_event_details({"error_code": error_payload.get("code")})
+            ),
+        )
+        self._session.add(event)
+        values: dict[str, Any] = {
+            "state": to_state,
+            "error_payload": copy.deepcopy(error_payload),
+        }
+        if provider_request_id is not None:
+            values["provider_request_id"] = provider_request_id
+        await self._update_operation(
+            operation_id=operation.id,
+            expected_version=expected_version,
+            values=values,
+        )
+        await self._flush_or_raise()
+        refreshed = await self.get_operation(operation.id)
+        if refreshed is None:
+            msg = "operation not found"
+            raise OperationPersistenceError(msg)
+        return refreshed
+
+    async def apply_late_result(
+        self,
+        *,
+        operation: Operation,
+        event_id: uuid.UUID,
+        event_type: str,
+        message_id: uuid.UUID | None,
+        details: SafeEventDetails,
+    ) -> Operation:
+        sequence = await self._next_sequence(operation.id)
+        event = OperationEvent(
+            id=event_id,
+            operation_id=operation.id,
+            sequence=sequence,
+            event_type=event_type,
+            from_state=None,
+            to_state=None,
+            message_id=message_id,
+            details=materialize_event_details(details),
+        )
+        self._session.add(event)
         await self._flush_or_raise()
         refreshed = await self.get_operation(operation.id)
         if refreshed is None:

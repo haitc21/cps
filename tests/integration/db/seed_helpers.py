@@ -7,6 +7,8 @@ from typing import Any
 
 import psycopg
 
+from cps.identifiers import new_uuid7
+
 VALID_NONCE = bytes.fromhex("000000000000000000000000")
 
 
@@ -130,7 +132,7 @@ def insert_operation(
 
 def seed_operation_graph(conn: psycopg.Connection) -> dict[str, uuid.UUID]:
     provider_id = insert_provider(conn)
-    credential_id = insert_credential(conn)
+    credential_id = insert_credential(conn, nonce=new_uuid7().bytes[:12])
     connection_id = insert_connection(conn, provider_id=provider_id, credential_id=credential_id)
     operation_id = insert_operation(conn, connection_id=connection_id)
     return {
