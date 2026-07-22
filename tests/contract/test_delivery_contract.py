@@ -26,28 +26,28 @@ ENVELOPE_FIXTURE_PATHS = (
 )
 UNCHANGED_MANIFEST_ENTRIES = {
     "fixtures/commands/connection_validate.json": (
-        "401ef58f71aab9b083e0120c89e9b1e316db0ab8353e7dbe0e59bf57059f2a8a"  # noqa: E501  # pragma: allowlist secret
+        "8359333157c3e875e29965901f0b8a3fe9cbddd137352a40b88effc983a3c626"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/errors/provider_authentication_failed.json": (
-        "c11b4a015b3c02d06c6fbafcfe233f2473ddbe3ead671696d87a4c26c569c7b7"  # noqa: E501  # pragma: allowlist secret
+        "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/inventory_batch.json": (
-        "3ab4d3a1402ef7f19380c89b1a53f754ad60bd303351f1c59b3c08a426dacd7d"  # noqa: E501  # pragma: allowlist secret
+        "2f131ebe9a44f965c0b0b315c11955ccf9efca8fef03bdd70c49dd62a6647b8c"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_completed.json": (
-        "de85e2879c3755e2a32622b420b796f8d70533d8004dedfe107e272988482cf9"  # noqa: E501  # pragma: allowlist secret
+        "b5509cba59284f2bfffcef4bbd44a44bf30a771d2201bdcbf62fe6059e67db7e"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_failed.json": (
-        "2129123d2fbb4e9c868405a32b2738474833a3741dae173cbb7891e52994f87e"  # noqa: E501  # pragma: allowlist secret
+        "419f9d68b886963d8e52e662ed5648ef3ac541fd0a321ac0b0a1314d289ac923"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_progress.json": (
-        "196e15b6bd2bf1b7c50e8404815b8de31cde897ca7cb04a649ce861cc90c0cb1"  # noqa: E501  # pragma: allowlist secret
+        "28f58ceb7ef7c1d825ce55c70558ced991d9292a369fd11fa2a09c8fb68edbce"  # noqa: E501  # pragma: allowlist secret
     ),
     "jsonschema/common_error.schema.json": (
-        "426ed52ff9025f1441bd05e89a019f69b0710799019477439ec634605301adc5"  # noqa: E501  # pragma: allowlist secret
+        "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e"  # noqa: E501  # pragma: allowlist secret
     ),
     "jsonschema/message_envelope.schema.json": (
-        "19fb555d3aad24b06183f3b15e64cd7e18e1b9fa7bd33c4cad4298ffeb6f1744"  # noqa: E501  # pragma: allowlist secret
+        "04ca0209f070c68fc718873e5c710c6171045dfc4674c5cc58e4fbbff2040655"  # noqa: E501  # pragma: allowlist secret
     ),
 }
 EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
