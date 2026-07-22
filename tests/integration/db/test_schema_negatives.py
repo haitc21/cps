@@ -26,12 +26,12 @@ def test_credential_nonce_too_short(db_tx: psycopg.Connection) -> None:
         db_tx,
         """
         INSERT INTO credentials (
-            id, username, password_ciphertext, password_nonce,
+            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
             encryption_key_version, version
         )
-        VALUES (%s, 'user1', %s, %s, 'v1', 1)
+        VALUES (%s, %s, %s, %s, %s, 'v1', 1)
         """,
-        (uuid.uuid4(), b"\x00", short_nonce),
+        (uuid.uuid4(), b"user-cipher", short_nonce, b"\x00", VALID_NONCE),
     )
 
 
@@ -41,12 +41,12 @@ def test_duplicate_credential_encryption_nonce(db_tx: psycopg.Connection) -> Non
         db_tx,
         """
         INSERT INTO credentials (
-            id, username, password_ciphertext, password_nonce,
+            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
             encryption_key_version, version
         )
-        VALUES (%s, 'user2', %s, %s, 'v1', 1)
+        VALUES (%s, %s, %s, %s, %s, 'v1', 1)
         """,
-        (uuid.uuid4(), b"\x01", VALID_NONCE),
+        (uuid.uuid4(), b"user-cipher-2", VALID_NONCE, b"\x01", VALID_NONCE),
     )
 
 
@@ -166,12 +166,12 @@ def test_credential_version_zero(db_tx: psycopg.Connection) -> None:
         db_tx,
         """
         INSERT INTO credentials (
-            id, username, password_ciphertext, password_nonce,
+            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
             encryption_key_version, version
         )
-        VALUES (%s, 'user1', %s, %s, 'v1', 0)
+        VALUES (%s, %s, %s, %s, %s, 'v1', 0)
         """,
-        (uuid.uuid4(), b"\x00", VALID_NONCE),
+        (uuid.uuid4(), b"user-cipher", VALID_NONCE, b"\x00", VALID_NONCE),
     )
 
 

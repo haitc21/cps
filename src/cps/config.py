@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from functools import lru_cache
 from typing import Literal
 
@@ -28,6 +30,8 @@ class Settings(BaseSettings):
     rabbitmq_url: str | None = None
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    credential_active_key_version: str = "v1"
+    credential_key_ring: str | None = None
 
     @model_validator(mode="after")
     def validate_required_urls(self) -> Settings:
@@ -65,6 +69,27 @@ class Settings(BaseSettings):
         if not self.rabbitmq_url:
             raise RuntimeError("rabbitmq_url is not configured")
         return self.rabbitmq_url
+
+    @property
+    def require_credential_keys(self) -> dict[str, bytes]:
+        """Parse the external key ring and fail closed without exposing values."""
+        if not self.credential_key_ring:
+            raise RuntimeError("credential encryption key ring is not configured")
+        keys: dict[str, bytes] = {}
+        try:
+            for item in self.credential_key_ring.split(","):
+                version, encoded = item.split(":", 1)
+                if not version or not encoded:
+                    raise ValueError
+                key = base64.b64decode(encoded, validate=True)
+                if len(key) != 32:
+                    raise ValueError
+                keys[version] = key
+        except (ValueError, UnicodeError, binascii.Error):
+            raise RuntimeError("credential encryption key ring is invalid") from None
+        if self.credential_active_key_version not in keys:
+            raise RuntimeError("active credential encryption key is unavailable")
+        return keys
 
 
 @lru_cache

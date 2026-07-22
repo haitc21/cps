@@ -26,7 +26,7 @@ ENVELOPE_FIXTURE_PATHS = (
 )
 UNCHANGED_MANIFEST_ENTRIES = {
     "fixtures/commands/connection_validate.json": (
-        "8359333157c3e875e29965901f0b8a3fe9cbddd137352a40b88effc983a3c626"  # noqa: E501  # pragma: allowlist secret
+        "f385ad33d4fd1ea27300cc6e5c5a3ef7ab588306caf0ebeed71c721aba097ec4"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/errors/provider_authentication_failed.json": (
         "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b"  # noqa: E501  # pragma: allowlist secret
@@ -35,13 +35,13 @@ UNCHANGED_MANIFEST_ENTRIES = {
         "2f131ebe9a44f965c0b0b315c11955ccf9efca8fef03bdd70c49dd62a6647b8c"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_completed.json": (
-        "b5509cba59284f2bfffcef4bbd44a44bf30a771d2201bdcbf62fe6059e67db7e"  # noqa: E501  # pragma: allowlist secret
+        "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_failed.json": (
         "419f9d68b886963d8e52e662ed5648ef3ac541fd0a321ac0b0a1314d289ac923"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_progress.json": (
-        "28f58ceb7ef7c1d825ce55c70558ced991d9292a369fd11fa2a09c8fb68edbce"  # noqa: E501  # pragma: allowlist secret
+        "9da2af29181b0fcdd2578bdf15f408c4226d82675d452fbba9bb36daa74899e1"  # noqa: E501  # pragma: allowlist secret
     ),
     "jsonschema/common_error.schema.json": (
         "d11f27e58d0e6fad404b7dd2d966eb840b3ac2bb37fb643637b10c48fac3ff6e"  # noqa: E501  # pragma: allowlist secret
@@ -53,6 +53,8 @@ UNCHANGED_MANIFEST_ENTRIES = {
 EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
     {
         "fixtures/transport/retry_delivery.json",
+        "jsonschema/capability_document.schema.json",
+        "jsonschema/credential_resolution.schema.json",
         "jsonschema/delivery_metadata.schema.json",
     }
 )

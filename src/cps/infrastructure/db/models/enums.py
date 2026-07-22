@@ -25,6 +25,7 @@ class OperationState(str, enum.Enum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     TIMED_OUT = "TIMED_OUT"
+    CANCELLED = "CANCELLED"
 
 
 class OutboxPublishState(str, enum.Enum):

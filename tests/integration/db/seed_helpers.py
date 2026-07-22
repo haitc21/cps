@@ -43,12 +43,12 @@ def insert_credential(
         cursor.execute(
             """
             INSERT INTO credentials (
-                id, username, password_ciphertext, password_nonce,
+                id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
                 encryption_key_version, version
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (credential_id, "user1", b"\x00", nonce, key_version, version),
+            (credential_id, b"user-cipher", nonce, b"\x00", nonce, key_version, version),
         )
     return credential_id
 

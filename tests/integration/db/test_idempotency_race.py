@@ -64,6 +64,12 @@ async def _seed_connection(
                 credential_id=credential_id,
                 username="service-user",
                 encrypted_password=encrypted,
+                encrypted_username=cipher.encrypt_secret(
+                    credential_id=credential_id,
+                    field_label="username",
+                    plaintext="service-user",
+                    key_version=_KEY_VERSION,
+                ),
             )
         )
         await uow.providers.add_connection(

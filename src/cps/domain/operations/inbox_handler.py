@@ -14,6 +14,7 @@ from cps.contracts.messages.types import (
     OPERATION_FAILED,
     OPERATION_PROGRESS,
 )
+from cps.contracts.validation import CapabilityDocument, ValidationProgress
 from cps.domain.operations.errors import (
     EventOwnershipMismatchError,
     InvalidOperationTransitionError,
@@ -99,11 +100,32 @@ class OperationInboxHandler:
         if operation.state in TERMINAL_STATES:
             msg = "progress update is not allowed in the current state"
             raise InvalidProgressStateError(msg)
-        progress_raw = envelope.payload.get("progress")
+        progress_model = ValidationProgress.model_validate(envelope.payload)
+        progress_raw = progress_model.progress
         if not isinstance(progress_raw, int):
             msg = "progress value is invalid"
             raise InvalidProgressStateError(msg)
         progress = validate_progress_percent(progress_raw)
+        if progress_model.state == "RUNNING" and operation.state == OperationState.QUEUED:
+            operation = await self._service.transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.RUNNING,
+                details={"status": "RUNNING"},
+                message_id=message_id,
+            )
+        elif (
+            progress_model.state == "WAITING_PROVIDER" and operation.state == OperationState.RUNNING
+        ):
+            operation = await self._service.transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.WAITING_PROVIDER,
+                details={"status": "WAITING_PROVIDER"},
+                message_id=message_id,
+            )
+        elif progress_model.state == "RUNNING" and operation.state != OperationState.RUNNING:
+            raise InvalidProgressStateError("progress state is invalid")
         details = validate_event_details(
             {
                 "progress": progress,
@@ -129,6 +151,9 @@ class OperationInboxHandler:
         if not isinstance(result_payload, dict):
             msg = "completed result payload is invalid"
             raise InvalidOperationTransitionError(msg)
+        capabilities = CapabilityDocument.model_validate(
+            result_payload.get("capabilities") if isinstance(result_payload, dict) else {}
+        )
         safe_result = validate_event_details({"result": result_payload}).to_dict()["result"]
         if operation.state in TERMINAL_STATES:
             await self._append_late_result(
@@ -139,6 +164,11 @@ class OperationInboxHandler:
             return
         to_state = OperationState.SUCCEEDED
         validate_transition_target(operation.state, to_state)
+        await self._repository.apply_connection_validation(
+            operation.provider_connection_id,
+            capabilities=capabilities.model_dump(mode="json"),
+            valid=True,
+        )
         await self._repository.apply_terminal_completion(
             operation=operation,
             expected_version=operation.version,
@@ -176,6 +206,12 @@ class OperationInboxHandler:
             return
         to_state = OperationState.FAILED
         validate_transition_target(operation.state, to_state)
+        await self._repository.apply_connection_validation(
+            operation.provider_connection_id,
+            validation_error=error_payload,
+            valid=False,
+            pending=common_error.retryable,
+        )
         await self._repository.apply_terminal_failure(
             operation=operation,
             expected_version=operation.version,

@@ -91,6 +91,12 @@ async def _commit_provider_aggregate(
                 credential_id=credential_id,
                 username="service-user",
                 encrypted_password=encrypted,
+                encrypted_username=cipher.encrypt_secret(
+                    credential_id=credential_id,
+                    field_label="username",
+                    plaintext="service-user",
+                    key_version=_KEY_VERSION,
+                ),
             )
         )
         await uow.providers.add_connection(
@@ -189,6 +195,12 @@ async def test_atomic_rollback_before_commit(
                     credential_id=credential_id,
                     username="service-user",
                     encrypted_password=encrypted,
+                    encrypted_username=cipher.encrypt_secret(
+                        credential_id=credential_id,
+                        field_label="username",
+                        plaintext="service-user",
+                        key_version=_KEY_VERSION,
+                    ),
                 )
             )
             await uow.providers.add_connection(
@@ -239,6 +251,12 @@ async def test_exit_without_commit_rolls_back(
                 credential_id=credential_id,
                 username="service-user",
                 encrypted_password=encrypted,
+                encrypted_username=cipher.encrypt_secret(
+                    credential_id=credential_id,
+                    field_label="username",
+                    plaintext="service-user",
+                    key_version=_KEY_VERSION,
+                ),
             )
         )
         await uow.providers.add_connection(
@@ -352,6 +370,12 @@ async def test_uncommitted_data_not_visible_to_fresh_session(
                 credential_id=credential_id,
                 username="service-user",
                 encrypted_password=encrypted,
+                encrypted_username=cipher.encrypt_secret(
+                    credential_id=credential_id,
+                    field_label="username",
+                    plaintext="service-user",
+                    key_version=_KEY_VERSION,
+                ),
             )
         )
 
@@ -577,6 +601,12 @@ async def test_credential_integrity_error_is_sanitized(
                 credential_id=first_id,
                 username=_USERNAME,
                 encrypted_password=encrypted,
+                encrypted_username=cipher.encrypt_secret(
+                    credential_id=first_id,
+                    field_label="username",
+                    plaintext=_USERNAME,
+                    key_version=_KEY_VERSION,
+                ),
             )
         )
         await first_uow.commit()
@@ -589,6 +619,12 @@ async def test_credential_integrity_error_is_sanitized(
                     credential_id=duplicate_id,
                     username=_USERNAME,
                     encrypted_password=encrypted,
+                    encrypted_username=cipher.encrypt_secret(
+                        credential_id=duplicate_id,
+                        field_label="username",
+                        plaintext=_USERNAME,
+                        key_version=_KEY_VERSION,
+                    ),
                 )
             )
 
@@ -603,7 +639,7 @@ async def test_credential_integrity_error_is_sanitized(
 
 
 @pytest.mark.asyncio
-async def test_credential_data_error_is_sanitized(
+async def test_credential_username_is_not_persisted_as_plaintext(
     db_session_factory,
     cipher: AesGcmCredentialCipher,
 ) -> None:
@@ -615,26 +651,28 @@ async def test_credential_data_error_is_sanitized(
         key_version=_KEY_VERSION,
     )
 
-    uow = SqlAlchemyUnitOfWork(db_session_factory)
-    with pytest.raises(ProviderPersistenceError, match="provider persistence failed") as exc_info:
-        async with uow:
-            await uow.providers.add_credential(
-                AddCredentialCommand(
-                    credential_id=credential_id,
-                    username=oversized_username,
-                    encrypted_password=encrypted,
-                )
-            )
-
-    _assert_redacted_persistence_exception(
-        exc_info.value,
-        extra_forbidden=(
-            oversized_username,
-            encrypted.ciphertext.hex(),
-            encrypted.nonce.hex(),
-            "StringDataRightTruncation",
-        ),
+    encrypted_username = cipher.encrypt_secret(
+        credential_id=credential_id,
+        field_label="username",
+        plaintext=oversized_username,
+        key_version=_KEY_VERSION,
     )
+    uow = SqlAlchemyUnitOfWork(db_session_factory)
+    async with uow:
+        await uow.providers.add_credential(
+            AddCredentialCommand(
+                credential_id=credential_id,
+                username=oversized_username,
+                encrypted_username=encrypted_username,
+                encrypted_password=encrypted,
+            )
+        )
+        await uow.commit()
+    async with db_session_factory() as session:
+        row = await session.get(Credential, credential_id)
+        assert row is not None
+        assert not hasattr(row, "username")
+        assert oversized_username.encode() not in row.username_ciphertext
 
 
 @pytest.mark.asyncio

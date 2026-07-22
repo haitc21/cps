@@ -119,6 +119,20 @@ def migrated_database(integration_database_url: str) -> Iterator[str]:
 
 @pytest.fixture
 def fresh_migrated_database(integration_database_url: str) -> Iterator[str]:
+    # The fixture is intentionally disposable: clean committed rows before the
+    # downgrade so the migration lifecycle exercises its empty-schema contract.
+    conninfo = to_psycopg_conninfo(integration_database_url)
+    with psycopg.connect(conninfo, autocommit=True) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' "
+                "AND table_name = 'providers'"
+            )
+            if cursor.fetchone() is not None:
+                cursor.execute(
+                    "TRUNCATE TABLE providers, credentials, provider_connections, operations, "
+                    "operation_events, outbox_messages, inbox_messages RESTART IDENTITY CASCADE"
+                )
     run_alembic(integration_database_url, "base")
     run_alembic(integration_database_url, "head")
     yield integration_database_url

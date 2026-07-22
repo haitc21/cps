@@ -70,11 +70,76 @@ class ResourceNotFoundError(DomainError):
     default_public_message = "Resource not found"
 
 
+class InvalidRequestError(DomainError):
+    status_code = 422
+    code = "INVALID_REQUEST"
+    category = ErrorCategory.VALIDATION
+    default_public_message = "Request validation failed"
+
+
 class DomainConflictError(DomainError):
     status_code = 409
     code = "CONFLICT"
     category = ErrorCategory.CONFLICT
     default_public_message = "Conflict"
+
+
+class ProviderNotFoundError(ResourceNotFoundError):
+    code = "PROVIDER_NOT_FOUND"
+    default_public_message = "Provider not found"
+
+
+class CredentialNotFoundError(ResourceNotFoundError):
+    code = "CREDENTIAL_NOT_FOUND"
+    default_public_message = "Credential not found"
+
+
+class VersionConflictError(DomainConflictError):
+    code = "VERSION_CONFLICT"
+    default_public_message = "Provider version conflict"
+
+
+class ProviderNameConflictError(DomainConflictError):
+    code = "PROVIDER_NAME_CONFLICT"
+    default_public_message = "Provider name already exists"
+
+
+class CredentialInUseError(DomainConflictError):
+    code = "RESOURCE_IN_USE"
+    default_public_message = "Credential is referenced by a provider connection"
+
+
+class CredentialKeyUnavailableError(DomainError):
+    status_code = 503
+    code = "CREDENTIAL_KEY_UNAVAILABLE"
+    category = ErrorCategory.INTERNAL
+    retryable = True
+    default_public_message = "Credential encryption key unavailable"
+
+
+class ProviderConnectionNotFoundError(ResourceNotFoundError):
+    code = "PROVIDER_CONNECTION_NOT_FOUND"
+    default_public_message = "Provider connection not found"
+
+
+class ProviderConnectionConflictError(DomainConflictError):
+    code = "PROVIDER_CONNECTION_CONFLICT"
+    default_public_message = "Provider connection already exists"
+
+
+class IdempotencyKeyReusedError(DomainConflictError):
+    code = "IDEMPOTENCY_KEY_REUSED"
+    default_public_message = "Idempotency key was reused with different input"
+
+
+class OperationNotFoundPublicError(ResourceNotFoundError):
+    code = "OPERATION_NOT_FOUND"
+    default_public_message = "Operation not found"
+
+
+class CapabilitiesNotAvailableError(ResourceNotFoundError):
+    code = "CAPABILITIES_NOT_AVAILABLE"
+    default_public_message = "Connection capabilities are not available"
 
 
 class CapabilityUnsupportedError(DomainError):

@@ -82,6 +82,7 @@ CHECKS = {
     },
     "credentials": {
         "ck_credentials_password_nonce_length",
+        "ck_credentials_username_nonce_length",
         "ck_credentials_version_positive",
     },
     "provider_connections": {
@@ -111,6 +112,7 @@ ENUMS = {
         "SUCCEEDED",
         "FAILED",
         "TIMED_OUT",
+        "CANCELLED",
     ],
     "outbox_publish_state": ["PENDING", "CLAIMED", "PUBLISHED", "FAILED"],
     "inbox_process_state": ["RECEIVED", "PROCESSED"],
@@ -220,7 +222,6 @@ def test_enum_names_and_values(
     labels: list[str],
 ) -> None:
     assert enum_labels(db_admin_conn, enum_name) == labels
-    assert "CANCELLED" not in enum_labels(db_admin_conn, enum_name)
 
 
 @pytest.mark.parametrize(
@@ -250,6 +251,15 @@ def test_credentials_has_no_plaintext_password_column(
     columns = table_columns(db_admin_conn, "credentials")
     assert "password" not in columns
     assert "password_ciphertext" in columns
+
+
+def test_credentials_has_no_plaintext_username_column(
+    migrated_database: str,
+    db_admin_conn: psycopg.Connection,
+) -> None:
+    columns = table_columns(db_admin_conn, "credentials")
+    assert "username" not in columns
+    assert {"username_ciphertext", "username_nonce"}.issubset(columns)
 
 
 def test_outbox_has_no_updated_at(

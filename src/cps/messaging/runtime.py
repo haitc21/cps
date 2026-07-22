@@ -24,6 +24,7 @@ from cps.infrastructure.messaging.constants import (
     QUEUE_CPS_EVENT,
 )
 from cps.infrastructure.messaging.inbox_consumer import EventInboxConsumer
+from cps.infrastructure.messaging.outbox_publisher import OutboxPublisher
 from cps.infrastructure.messaging.publisher import ConfirmedPublisher
 from cps.infrastructure.messaging.topology import (
     DeclaredEventTopology,
@@ -160,8 +161,9 @@ async def run_worker(
     connect: ConnectFn | None = None,
     retry_ttls_ms: tuple[int, int] | None = None,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
+    publish_outbox: bool = False,
 ) -> None:
-    """Connect to RabbitMQ, declare topology, and run the CPS inbox consumer."""
+    """Run the CPS inbox consumer and, in production, the outbox dispatcher."""
     resources = _WorkerResources(
         lifecycle=lifecycle or WorkerLifecycle(),
         settings=settings,
@@ -176,6 +178,17 @@ async def run_worker(
     else:
         resources.db_engine = create_database_engine(settings.require_database_url)
         resources.session_factory = create_session_factory(resources.db_engine)
+    outbox_task: asyncio.Task[None] | None = None
+    if publish_outbox and not once:
+        if resources.session_factory is None:
+            msg = "outbox publisher requires a session factory"
+            raise RuntimeError(msg)
+        outbox_publisher = OutboxPublisher(
+            session_factory=resources.session_factory,
+            rabbitmq_url=settings.require_rabbitmq_url,
+            publisher_id=settings.service_name,
+        )
+        outbox_task = asyncio.create_task(_run_outbox_publisher(outbox_publisher))
     reconnect_attempt = 0
 
     try:
@@ -218,8 +231,30 @@ async def run_worker(
                 reconnect_attempt += 1
                 await _reconnect_delay(reconnect_attempt)
     finally:
+        if outbox_task is not None:
+            outbox_task.cancel()
+            try:
+                await outbox_task
+            except asyncio.CancelledError:
+                pass
         await resources.shutdown()
         logger.info("cps worker disconnected from rabbitmq")
+
+
+async def _run_outbox_publisher(publisher: OutboxPublisher) -> None:
+    """Continuously dispatch committed commands from the transactional outbox."""
+    while True:
+        try:
+            published = await publisher.publish_due(batch_size=100)
+            await asyncio.sleep(0.1 if published else 0.5)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "cps outbox publish failed; retrying",
+                extra={"error_type": type(exc).__name__},
+            )
+            await asyncio.sleep(1.0)
 
 
 async def _wait_for_session_end(resources: _WorkerResources) -> SessionEndReason:

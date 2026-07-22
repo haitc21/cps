@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import CursorResult, func, select, update
@@ -104,6 +104,34 @@ class OperationRepository:
         )
         return result.scalar_one_or_none()
 
+    async def apply_connection_validation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        capabilities: dict[str, Any] | None = None,
+        validation_error: dict[str, Any] | None = None,
+        valid: bool,
+        pending: bool = False,
+    ) -> None:
+        from cps.infrastructure.db.models.enums import ConnectionStatus
+
+        if pending:
+            status = ConnectionStatus.PENDING_VALIDATION
+        else:
+            status = ConnectionStatus.VALID if valid else ConnectionStatus.INVALID
+        result = await self._session.execute(
+            update(ProviderConnection)
+            .where(ProviderConnection.id == connection_id)
+            .values(
+                status=status,
+                capabilities=capabilities,
+                validation_error=validation_error,
+                validated_at=datetime.now(UTC),
+            )
+        )
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            raise OperationPersistenceError("provider connection not found")
+
     async def get_events(self, operation_id: uuid.UUID) -> list[OperationEvent]:
         result = await self._session.execute(
             select(OperationEvent)
@@ -111,6 +139,44 @@ class OperationRepository:
             .order_by(OperationEvent.sequence)
         )
         return list(result.scalars().all())
+
+    async def list_operations(
+        self,
+        *,
+        offset: int,
+        limit: int,
+        provider_connection_id: uuid.UUID | None = None,
+        operation_type: str | None = None,
+        state: OperationState | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
+    ) -> tuple[list[Operation], int]:
+        filters = []
+        if provider_connection_id is not None:
+            filters.append(Operation.provider_connection_id == provider_connection_id)
+        if operation_type is not None:
+            filters.append(Operation.operation_type == operation_type)
+        if state is not None:
+            filters.append(Operation.state == state)
+        if created_from is not None:
+            filters.append(Operation.created_at >= created_from)
+        if created_to is not None:
+            filters.append(Operation.created_at <= created_to)
+        total = int(
+            (
+                await self._session.execute(
+                    select(func.count()).select_from(Operation).where(*filters)
+                )
+            ).scalar_one()
+        )
+        result = await self._session.execute(
+            select(Operation)
+            .where(*filters)
+            .order_by(Operation.created_at, Operation.id)
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars().all()), total
 
     async def apply_state_transition(
         self,

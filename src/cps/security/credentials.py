@@ -23,6 +23,25 @@ class CredentialKeyProvider(Protocol):
 
 
 class CredentialCipher(Protocol):
+    def encrypt_secret(
+        self,
+        *,
+        credential_id: uuid.UUID,
+        field_label: str,
+        plaintext: str,
+        key_version: str,
+    ) -> EncryptedSecret:
+        """Encrypt a labeled credential secret for persistence."""
+
+    def decrypt_secret(
+        self,
+        *,
+        credential_id: uuid.UUID,
+        field_label: str,
+        encrypted: EncryptedSecret | EncryptedPassword,
+    ) -> str:
+        """Decrypt a labeled persisted credential secret."""
+
     def encrypt_password(
         self,
         *,
@@ -51,6 +70,16 @@ class EncryptedPassword:
         return "EncryptedPassword(redacted)"
 
 
+@dataclass(frozen=True, slots=True)
+class EncryptedSecret:
+    ciphertext: bytes
+    nonce: bytes
+    key_version: str
+
+    def __repr__(self) -> str:
+        return "EncryptedSecret(redacted)"
+
+
 class MappingCredentialKeyProvider:
     """In-memory key provider for tests and explicit wiring."""
 
@@ -74,11 +103,31 @@ class AesGcmCredentialCipher:
         plaintext: str,
         key_version: str,
     ) -> EncryptedPassword:
+        encrypted = self.encrypt_secret(
+            credential_id=credential_id,
+            field_label="password",
+            plaintext=plaintext,
+            key_version=key_version,
+        )
+        return EncryptedPassword(
+            ciphertext=encrypted.ciphertext,
+            nonce=encrypted.nonce,
+            key_version=encrypted.key_version,
+        )
+
+    def encrypt_secret(
+        self,
+        *,
+        credential_id: uuid.UUID,
+        field_label: str,
+        plaintext: str,
+        key_version: str,
+    ) -> EncryptedSecret:
         key = self._resolve_key(key_version)
         nonce = _generate_nonce()
-        aad = _build_aad(credential_id, key_version)
+        aad = _build_aad(credential_id, key_version, field_label)
         ciphertext = AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), aad)
-        return EncryptedPassword(
+        return EncryptedSecret(
             ciphertext=ciphertext,
             nonce=nonce,
             key_version=key_version,
@@ -90,8 +139,21 @@ class AesGcmCredentialCipher:
         credential_id: uuid.UUID,
         encrypted: EncryptedPassword,
     ) -> str:
+        return self.decrypt_secret(
+            credential_id=credential_id,
+            field_label="password",
+            encrypted=encrypted,
+        )
+
+    def decrypt_secret(
+        self,
+        *,
+        credential_id: uuid.UUID,
+        field_label: str,
+        encrypted: EncryptedSecret | EncryptedPassword,
+    ) -> str:
         key = self._resolve_key(encrypted.key_version)
-        aad = _build_aad(credential_id, encrypted.key_version)
+        aad = _build_aad(credential_id, encrypted.key_version, field_label)
         try:
             plaintext = AESGCM(key).decrypt(encrypted.nonce, encrypted.ciphertext, aad)
         except Exception:
@@ -115,8 +177,10 @@ class AesGcmCredentialCipher:
         return _validate_key_bytes(key)
 
 
-def _build_aad(credential_id: uuid.UUID, key_version: str) -> bytes:
-    return f"{credential_id}:{key_version}".encode()
+def _build_aad(credential_id: uuid.UUID, key_version: str, field_label: str = "password") -> bytes:
+    if not field_label or ":" in field_label:
+        raise CredentialEncryptionError("credential field label is invalid")
+    return f"{credential_id}:{key_version}:{field_label}".encode()
 
 
 def _generate_nonce() -> bytes:

@@ -15,6 +15,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve = subparsers.add_parser("serve", help="Run the CPS HTTP API")
     serve.add_argument("--host", default="0.0.0.0", help="Bind host")
     serve.add_argument("--port", type=int, default=8000, help="Bind port")
+    serve.add_argument(
+        "--internal",
+        action="store_true",
+        help="Run the private credential resolver listener",
+    )
 
     worker = subparsers.add_parser("worker", help="Run the CPS background worker")
     worker.add_argument(
@@ -35,7 +40,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "serve":
         import uvicorn
 
-        uvicorn.run("cps.main:create_app", factory=True, host=args.host, port=args.port)
+        app_factory = "cps.main:create_internal_app" if args.internal else "cps.main:create_app"
+        uvicorn.run(app_factory, factory=True, host=args.host, port=args.port)
         return
 
     if args.command == "worker":
@@ -47,7 +53,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         settings = get_settings()
         configure_logging(level=settings.log_level, service_name=settings.service_name)
         lifecycle = WorkerLifecycle()
-        asyncio.run(run_worker(settings=settings, lifecycle=lifecycle, once=args.once))
+        asyncio.run(
+            run_worker(
+                settings=settings,
+                lifecycle=lifecycle,
+                once=args.once,
+                publish_outbox=True,
+            )
+        )
         if args.once:
             print("cps worker initialized", flush=True)
         return
