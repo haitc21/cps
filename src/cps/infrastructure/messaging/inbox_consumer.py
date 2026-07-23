@@ -396,6 +396,8 @@ class EventInboxConsumer:
                             provider_connection_id=envelope.provider_connection_id,
                             sync_id=None,
                             instance=instance,
+                            ports=result.get("ports", []),
+                            volumes=result.get("volumes", []),
                         )
 
             marked = await uow.inbox.mark_processed(inbox_id, now=now)

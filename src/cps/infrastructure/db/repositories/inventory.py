@@ -17,6 +17,8 @@ from cps.infrastructure.db.models.inventory import (
     Flavor,
     Image,
     Instance,
+    InstancePort,
+    InstanceVolume,
     Network,
     Port,
     Project,
@@ -122,6 +124,8 @@ class InventoryRepository:
         provider_connection_id: uuid.UUID,
         sync_id: uuid.UUID | None,
         instance: dict[str, Any],
+        ports: list[dict[str, Any]] | None = None,
+        volumes: list[dict[str, Any]] | None = None,
     ) -> Any:
         provider_resource_id = instance.get("provider_resource_id")
         name = instance.get("name")
@@ -145,7 +149,55 @@ class InventoryRepository:
                 Instance.provider_resource_id == provider_resource_id,
             )
         )
-        return result.scalar_one()
+        instance_row = result.scalar_one()
+        for port_item in ports or []:
+            await self._upsert_resource(
+                model=Port,
+                provider_connection_id=provider_connection_id,
+                sync_id=sync_id or uuid.uuid4(),
+                item=port_item,
+            )
+            port_result = await self._session.execute(
+                select(Port).where(
+                    Port.provider_connection_id == provider_connection_id,
+                    Port.provider_resource_id == port_item["provider_resource_id"],
+                )
+            )
+            port_row = port_result.scalar_one()
+            await self._session.merge(
+                InstancePort(
+                    instance_id=instance_row.id,
+                    port_id=port_row.id,
+                    provider_port_resource_id=port_row.provider_resource_id,
+                    device=port_item.get("attributes", {}).get("device_id"),
+                )
+            )
+        for volume_item in volumes or []:
+            await self._upsert_resource(
+                model=Volume,
+                provider_connection_id=provider_connection_id,
+                sync_id=sync_id or uuid.uuid4(),
+                item=volume_item,
+            )
+            volume_result = await self._session.execute(
+                select(Volume).where(
+                    Volume.provider_connection_id == provider_connection_id,
+                    Volume.provider_resource_id == volume_item["provider_resource_id"],
+                )
+            )
+            volume_row = volume_result.scalar_one()
+            attributes = volume_item.get("attributes", {})
+            await self._session.merge(
+                InstanceVolume(
+                    instance_id=instance_row.id,
+                    volume_id=volume_row.id,
+                    provider_volume_resource_id=volume_row.provider_resource_id,
+                    device=attributes.get("device"),
+                    boot_index=attributes.get("boot_index"),
+                    delete_on_termination=attributes.get("delete_on_termination"),
+                )
+            )
+        return instance_row
 
     async def list_resources(
         self,
