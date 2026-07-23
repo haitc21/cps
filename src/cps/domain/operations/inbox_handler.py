@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from cps.contracts.errors import CommonError
 from cps.contracts.messages.envelope import MessageEnvelope
 from cps.contracts.messages.types import (
+    CONNECTION_VALIDATE,
     OPERATION_COMPLETED,
     OPERATION_FAILED,
     OPERATION_PROGRESS,
@@ -151,9 +152,6 @@ class OperationInboxHandler:
         if not isinstance(result_payload, dict):
             msg = "completed result payload is invalid"
             raise InvalidOperationTransitionError(msg)
-        capabilities = CapabilityDocument.model_validate(
-            result_payload.get("capabilities") if isinstance(result_payload, dict) else {}
-        )
         safe_result = validate_event_details({"result": result_payload}).to_dict()["result"]
         if operation.state in TERMINAL_STATES:
             await self._append_late_result(
@@ -164,11 +162,13 @@ class OperationInboxHandler:
             return
         to_state = OperationState.SUCCEEDED
         validate_transition_target(operation.state, to_state)
-        await self._repository.apply_connection_validation(
-            operation.provider_connection_id,
-            capabilities=capabilities.model_dump(mode="json"),
-            valid=True,
-        )
+        if operation.operation_type == CONNECTION_VALIDATE:
+            capabilities = CapabilityDocument.model_validate(result_payload.get("capabilities", {}))
+            await self._repository.apply_connection_validation(
+                operation.provider_connection_id,
+                capabilities=capabilities.model_dump(mode="json"),
+                valid=True,
+            )
         await self._repository.apply_terminal_completion(
             operation=operation,
             expected_version=operation.version,

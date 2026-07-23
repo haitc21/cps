@@ -97,6 +97,56 @@ class InventoryRepository:
         result = await self._session.execute(select(model).where(model.id == resource_id))
         return result.scalar_one_or_none()
 
+    async def resource_belongs_to_connection(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        provider_resource_id: str,
+    ) -> bool:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(
+            select(model.id).where(
+                model.provider_connection_id == provider_connection_id,
+                model.provider_resource_id == provider_resource_id,
+                model.lifecycle_state != "DELETED",
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def persist_instance_result(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        sync_id: uuid.UUID | None,
+        instance: dict[str, Any],
+    ) -> Any:
+        provider_resource_id = instance.get("provider_resource_id")
+        name = instance.get("name")
+        if not isinstance(provider_resource_id, str) or not isinstance(name, str):
+            raise InventoryPersistenceError("instance result identity is invalid")
+        await self._upsert_resource(
+            model=Instance,
+            provider_connection_id=provider_connection_id,
+            sync_id=sync_id or uuid.uuid4(),
+            item={
+                "provider_resource_id": provider_resource_id,
+                "name": name,
+                "provider_status": instance.get("provider_status"),
+                "lifecycle_state": instance.get("lifecycle_state", "ACTIVE"),
+                "attributes": instance.get("attributes", {}),
+            },
+        )
+        result = await self._session.execute(
+            select(Instance).where(
+                Instance.provider_connection_id == provider_connection_id,
+                Instance.provider_resource_id == provider_resource_id,
+            )
+        )
+        return result.scalar_one()
+
     async def list_resources(
         self,
         resource_type: str,

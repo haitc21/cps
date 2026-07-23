@@ -388,6 +388,15 @@ class EventInboxConsumer:
                 await InventoryInboxHandler(uow.inventory, uow.operations).handle(envelope)
             else:
                 await handler.handle(envelope)
+                result = envelope.payload.get("result", {})
+                if envelope.message_type == OPERATION_COMPLETED and isinstance(result, dict):
+                    instance = result.get("instance")
+                    if isinstance(instance, dict):
+                        await uow.inventory.persist_instance_result(
+                            provider_connection_id=envelope.provider_connection_id,
+                            sync_id=None,
+                            instance=instance,
+                        )
 
             marked = await uow.inbox.mark_processed(inbox_id, now=now)
 

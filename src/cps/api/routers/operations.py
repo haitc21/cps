@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.schemas.instance import InstanceActionRequest, InstanceCreateRequest
 from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequest
 from cps.api.schemas.operations import (
     OperationEventPage,
@@ -101,6 +102,70 @@ async def create_inventory_refresh(
         correlation_id=uuid.UUID(request.state.correlation_id),
         resource_type=body.resource_type,
         provider_resource_id=body.provider_resource_id,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/instances",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_instance(
+    connection_id: uuid.UUID,
+    body: InstanceCreateRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    operation = await _service(uow).create_instance(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=body,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/instances/{instance_provider_resource_id}/{action}",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def instance_action(
+    connection_id: uuid.UUID,
+    instance_provider_resource_id: str,
+    action: str,
+    body: InstanceActionRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    try:
+        action_value = body.action
+        if action.lower() != action_value.value.lower():
+            raise ValueError
+    except ValueError as exc:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("path action does not match request action") from exc
+    operation = await _service(uow).create_instance_action(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        action=action_value,
+        instance_provider_resource_id=instance_provider_resource_id,
+        reboot_type=body.reboot_type,
     )
     await uow.commit()
     return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
