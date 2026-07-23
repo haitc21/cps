@@ -24,7 +24,7 @@ Priorities use Must/Should/Could. Sprint allocation is the initial forecast and 
 - **Sprint/Priority/Points:** 0 / Must / 3
 - **Depends on:** CPS-001
 - **Tasks:** live/ready endpoints, PostgreSQL 18 and RabbitMQ checks, Compose documentation alignment.
-- **Acceptance:** liveness is process-only; readiness becomes false when DB or RabbitMQ is unavailable; Valkey is not a CPS readiness dependency.
+- **Acceptance:** liveness is process-only; readiness becomes false when PostgreSQL or RabbitMQ is unavailable.
 
 ### CPS-004 — Local quality pipeline
 

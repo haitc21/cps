@@ -2,7 +2,7 @@
 
 **Dates:** 2026-07-17 to 2026-07-31
 **Capacity:** focused foundation delivery
-**Sprint Goal:** CPS installs from a pinned CPython 3.12 lockfile, starts with typed config and secret-safe logging, exposes live/ready health against PostgreSQL 18 and RabbitMQ, and passes CI quality gates without OpenStackSDK or Valkey runtime dependencies.
+**Sprint Goal:** CPS installs from a pinned CPython 3.12 lockfile, starts with typed config and secret-safe logging, exposes live/ready health against PostgreSQL 18 and RabbitMQ, and passes CI quality gates without OpenStackSDK runtime dependencies.
 
 ## Selected stories
 
@@ -41,7 +41,7 @@
 ### CPS-003 — Health and local infrastructure integration
 
 - **Depends on:** CPS-001
-- **Acceptance:** liveness is process-only; readiness false when DB or RabbitMQ unavailable; Valkey is not a readiness dependency.
+- **Acceptance:** liveness is process-only; readiness is false when PostgreSQL or RabbitMQ is unavailable.
 - **Verification:** unit tests with fakes; integration tests against Compose PostgreSQL/RabbitMQ.
 
 ### CPS-004 — Local quality pipeline
@@ -72,10 +72,10 @@
   - `python -m detect_secrets scan --baseline .secrets.baseline ...` — ok
   - `docker build -t cps:sprint0 .` — ok
   - `git diff --check` — clean
-  - Compose postgres/rabbitmq/valkey remained healthy
+  - Compose PostgreSQL/RabbitMQ remained healthy
 - Hardening commits: `e928569` (worker/logging/contracts/integration defaults + cancellation path)
 - Contract checksum: empty Sprint 0 manifest (`fixtures: {}`)
-- Known limitations: no provider/domain APIs; Alembic empty baseline only; Valkey unused by CPS readiness.
+- Known limitations: no provider/domain APIs; Alembic empty baseline only.
 
 ## Retrospective actions
 

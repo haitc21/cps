@@ -52,7 +52,6 @@ RTK does not resolve PowerShell cmdlets such as `Get-ChildItem` or `Get-Content`
 - Every mutation is a durable operation with idempotency and immutable history.
 - Database/message reliability uses transactional outbox and inbox patterns.
 - Inventory uses typed tables, provider identity, soft deletion, and safe full-sync finalization.
-- Valkey and MongoDB are not CPS runtime dependencies in the current scope.
 - Keycloak, TMS, MS, LMS, and VMware are extension points, not current implementation scope.
 
 ## Contract-first rule

@@ -43,7 +43,7 @@ Keycloak, MS/TMS/LMS/CMP, multi-region, UI, and Sprint 3 are explicitly deferred
 
 Ubuntu 26.04 LTS, Bash 5.3.9, CPython 3.12.13, uv 0.11.31, Docker 29.3.1/Compose 5.1.1,
 CodeGraph 1.2.0, RTK 0.43.0, Codex CLI 0.145.0, ShellCheck 0.11.0, and shfmt 3.13.1 were
-detected. PostgreSQL 18, RabbitMQ 4.1, and Valkey 9.1 development containers were healthy.
+detected. PostgreSQL 18 and RabbitMQ 4.1 development containers were healthy.
 No tracked project-relevant PowerShell script exists; the existing Husky shell gate was hardened
 and active Ubuntu documentation was corrected. CPS/OPS worktrees were clean and synchronized.
 

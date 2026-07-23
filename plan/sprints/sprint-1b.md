@@ -32,7 +32,6 @@
 - Inventory tables and sync (CPS-301+, OPS-301+).
 - VM lifecycle APIs and real OpenStack integration.
 - Keycloak, TMS, LMS, and CMP integration.
-- Valkey runtime dependency in CPS.
 
 ## Delivery order and review checkpoints
 

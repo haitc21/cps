@@ -30,7 +30,6 @@ The first delivery excludes:
 - Creation or management of networks, subnets, ports, security groups, key pairs, images, flavors, or volumes as standalone workflows.
 - OpenStack notification-bus/event-catcher integration.
 - Metrics, console access, floating-IP operations, snapshots, resize, migrate, rebuild, rescue, and shelve.
-- Valkey and MongoDB usage.
 
 ## 2. Architectural decision
 
@@ -81,7 +80,7 @@ OPS stores no credential, inventory, tenant, product, pricing, billing, or audit
 - CPS and OPS deploy and scale independently.
 - They use the shared CMP RabbitMQ and PostgreSQL clusters. CPS owns a separate database or schema and DB user.
 - Exchanges, queues, dead-letter queues, routing keys, and permissions are isolated by domain/service.
-- OPS does not require PostgreSQL, MongoDB, or Valkey.
+- OPS does not require PostgreSQL.
 - CPS readiness checks PostgreSQL and RabbitMQ. OPS readiness checks RabbitMQ. A failed customer OpenStack connection affects only that connection's status.
 
 ## 4. Provider, connection, and credential model
@@ -540,7 +539,7 @@ The initial direct-dependency baseline, verified against published package metad
 
 Patch versions are resolved and committed in a lockfile rather than floating at deployment time. `pyproject.toml` declares compatible release ranges for libraries that follow semantic versioning; the lockfile pins the exact transitive graph. Major/minor upgrades require unit, contract, integration, migration, and real-OpenStack smoke tests before the lockfile is refreshed.
 
-Runtime images use an explicit Python 3.12 slim digest or immutable patch tag. They must include only OS packages required by the resolved wheels and TLS/CA handling. CPS and OPS maintain separate lockfiles because OpenStackSDK and database dependencies belong to different services. CI tests the locked dependencies against PostgreSQL 18, RabbitMQ 4.1, Valkey 9.1.0 where applicable, and the available customer OpenStack API through discovery rather than release-specific assumptions.
+Runtime images use an explicit Python 3.12 slim digest or immutable patch tag. They must include only OS packages required by the resolved wheels and TLS/CA handling. CPS and OPS maintain separate lockfiles because OpenStackSDK and database dependencies belong to different services. CI tests the locked dependencies against PostgreSQL 18, RabbitMQ 4.1, and the available customer OpenStack API through discovery rather than release-specific assumptions.
 
 OpenStack compatibility is governed by service catalog discovery, negotiated API/microversions, capability tests, and SDK behavior—not by matching the Python/OpenStack release name. OPS must not depend on deprecated `python-openstacksdk`, direct Nova/Neutron/Cinder client libraries, or SDK internals when a supported OpenStackSDK proxy/resource API exists.
 

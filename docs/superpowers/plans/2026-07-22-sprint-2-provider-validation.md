@@ -64,7 +64,7 @@ The approved Sprint 2 decisions are:
 | Shell tools | ShellCheck/shfmt | 0.11.0/3.13.1 | READY | none |
 | Sprint 1B | stories and 12 tasks done | CPS/OPS docs mark Done; gates passed | READY | none |
 | CPS/OPS sync | clean and upstream-aligned | clean, local SHA == origin | READY | none |
-| Compose infra | PostgreSQL 18/RabbitMQ 4.1/Valkey 9.1 | healthy containers | READY | no volume deletion |
+| Compose infra | PostgreSQL 18/RabbitMQ 4.1 | healthy containers | READY | no volume deletion |
 | OpenStack host route | controller hostname from host | VM-to-VM HTTP 200; host resolver entry pending | MANUAL BLOCKER | before CP12, user-approved host route or direct approved endpoint |
 
 CP0 portability commit is already pushed: CPS `b05ea02`, OPS `89173ba`. It updates active Ubuntu
