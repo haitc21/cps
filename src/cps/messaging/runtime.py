@@ -14,6 +14,7 @@ import aio_pika
 from aio_pika.abc import AbstractChannel, AbstractRobustConnection
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from cps.application.recovery import timeout_expired_operations
 from cps.config import Settings
 from cps.infrastructure.db.engine import create_database_engine
 from cps.infrastructure.db.session import create_session_factory
@@ -179,6 +180,7 @@ async def run_worker(
         resources.db_engine = create_database_engine(settings.require_database_url)
         resources.session_factory = create_session_factory(resources.db_engine)
     outbox_task: asyncio.Task[None] | None = None
+    recovery_task: asyncio.Task[None] | None = None
     if publish_outbox and not once:
         if resources.session_factory is None:
             msg = "outbox publisher requires a session factory"
@@ -189,6 +191,15 @@ async def run_worker(
             publisher_id=settings.service_name,
         )
         outbox_task = asyncio.create_task(_run_outbox_publisher(outbox_publisher))
+    if not once:
+        if resources.session_factory is None:
+            raise RuntimeError("recovery sweeper requires a session factory")
+        recovery_task = asyncio.create_task(
+            _run_recovery_sweeper(
+                resources.session_factory,
+                interval_seconds=settings.recovery_interval_seconds,
+            )
+        )
     reconnect_attempt = 0
 
     try:
@@ -237,6 +248,12 @@ async def run_worker(
                 await outbox_task
             except asyncio.CancelledError:
                 pass
+        if recovery_task is not None:
+            recovery_task.cancel()
+            try:
+                await recovery_task
+            except asyncio.CancelledError:
+                pass
         await resources.shutdown()
         logger.info("cps worker disconnected from rabbitmq")
 
@@ -255,6 +272,24 @@ async def _run_outbox_publisher(publisher: OutboxPublisher) -> None:
                 extra={"error_type": type(exc).__name__},
             )
             await asyncio.sleep(1.0)
+
+
+async def _run_recovery_sweeper(
+    session_factory: async_sessionmaker[AsyncSession], *, interval_seconds: float
+) -> None:
+    """Timeout operations from CPS truth without contacting a provider."""
+    while True:
+        try:
+            await timeout_expired_operations(session_factory)
+            await asyncio.sleep(max(0.1, interval_seconds))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning(
+                "cps recovery sweep failed; retrying",
+                extra={"error_type": type(exc).__name__},
+            )
+            await asyncio.sleep(max(0.1, interval_seconds))
 
 
 async def _wait_for_session_end(resources: _WorkerResources) -> SessionEndReason:

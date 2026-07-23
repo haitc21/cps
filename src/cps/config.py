@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     api_port: int = 8000
     credential_active_key_version: str = "v1"
     credential_key_ring: str | None = None
+    operation_timeout_seconds: int = 900
+    recovery_interval_seconds: float = 5.0
+    inventory_scheduler_enabled: bool = False
+    inventory_scheduler_interval_seconds: float = 60.0
+    inventory_scheduler_jitter_seconds: float = 10.0
 
     @model_validator(mode="after")
     def validate_required_urls(self) -> Settings:

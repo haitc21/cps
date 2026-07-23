@@ -27,6 +27,7 @@ class OperationView(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    timeout_at: datetime | None = None
 
 
 class OperationPageInfo(BaseModel):

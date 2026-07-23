@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from cps.domain.operations.errors import IdempotencyConflictError, OperationPersistenceError
@@ -11,6 +11,8 @@ from cps.domain.operations.idempotency import canonical_fingerprint
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.operations import Operation
 from cps.infrastructure.db.repositories.operations import IdempotencyScopeConflictError
+
+DEFAULT_OPERATION_TIMEOUT_SECONDS = 900
 
 if TYPE_CHECKING:
     from cps.domain.messaging.outbox import OutboxDraft
@@ -41,6 +43,8 @@ async def create_operation_idempotent(
         msg = "operation id must be UUIDv7"
         raise OperationPersistenceError(msg)
     fingerprint = canonical_fingerprint(request_payload)
+    if timeout_at is None:
+        timeout_at = datetime.now(UTC) + timedelta(seconds=DEFAULT_OPERATION_TIMEOUT_SECONDS)
 
     if idempotency_key is not None:
         existing = await repository.get_by_idempotency_scope(

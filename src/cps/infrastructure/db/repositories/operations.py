@@ -140,6 +140,26 @@ class OperationRepository:
         )
         return list(result.scalars().all())
 
+    async def list_expired_nonterminal(self, *, now: datetime, limit: int = 100) -> list[Operation]:
+        """Claim expired active operations for the recovery sweeper."""
+        states = (
+            OperationState.QUEUED,
+            OperationState.RUNNING,
+            OperationState.WAITING_PROVIDER,
+        )
+        result = await self._session.execute(
+            select(Operation)
+            .where(
+                Operation.timeout_at.is_not(None),
+                Operation.timeout_at <= now,
+                Operation.state.in_(states),
+            )
+            .order_by(Operation.timeout_at, Operation.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return list(result.scalars().all())
+
     async def list_operations(
         self,
         *,

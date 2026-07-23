@@ -209,3 +209,11 @@ async def get_operation_events(
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> OperationEventPage:
     return await _service(uow).events(operation_id, offset=offset, limit=limit)
+
+
+@router.get("/api/v1/operations/{operation_id}/audit")
+async def get_operation_audit(
+    operation_id: uuid.UUID,
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> dict[str, object]:
+    return await _service(uow).audit(operation_id)

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from fastapi import APIRouter, Request, Response, status
+from fastapi.responses import PlainTextResponse
 
 router = APIRouter(tags=["health"])
 
@@ -36,3 +37,10 @@ async def readiness(request: Request, response: Response) -> dict[str, Any]:
         payload["status"] = "error"
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return payload
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def metrics_endpoint(request: Request) -> str:
+    """Expose safe process counters without operation payloads or secrets."""
+    registry = cast(Any, request.app.state.metrics)
+    return str(registry.render_prometheus())

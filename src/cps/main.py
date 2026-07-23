@@ -19,6 +19,7 @@ from cps.infrastructure.db.engine import create_database_engine
 from cps.infrastructure.db.session import create_session_factory
 from cps.infrastructure.health import HealthChecks
 from cps.observability.logging import configure_logging
+from cps.observability.metrics import metrics
 from cps.observability.middleware import CorrelationIdMiddleware
 from cps.security.credentials import AesGcmCredentialCipher, MappingCredentialKeyProvider
 
@@ -44,6 +45,7 @@ def _create_base_app(resolved: Settings, *, title: str) -> tuple[FastAPI, object
         )
     app.state.credential_cipher = credential_cipher
     app.state.health_checks = HealthChecks(resolved)
+    app.state.metrics = metrics
     app.add_middleware(CorrelationIdMiddleware)
     register_error_handlers(app)
     app.include_router(health_router)

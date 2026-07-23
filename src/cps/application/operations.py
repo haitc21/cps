@@ -12,6 +12,7 @@ from cps.api.schemas.operations import (
     OperationPageInfo,
     OperationView,
 )
+from cps.application.audit import project_operation_audit
 from cps.contracts.errors import (
     IdempotencyKeyReusedError,
     OperationNotFoundPublicError,
@@ -38,6 +39,7 @@ from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.repositories.inventory import InventoryRepository
 from cps.infrastructure.db.repositories.operations import OperationRepository
 from cps.infrastructure.db.repositories.outbox import OutboxRepository
+from cps.observability.metrics import metrics
 
 
 def to_view(operation: object) -> OperationView:
@@ -114,6 +116,7 @@ class OperationApplicationService:
                 details={"status": "QUEUED"},
                 message_id=message_id,
             )
+        metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
     async def create_inventory_sync(
@@ -197,6 +200,7 @@ class OperationApplicationService:
                 details={"status": "QUEUED"},
                 message_id=message_id,
             )
+        metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
     async def create_inventory_refresh(
@@ -283,6 +287,7 @@ class OperationApplicationService:
                 details={"status": "QUEUED"},
                 message_id=message_id,
             )
+        metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
     async def create_instance(
@@ -363,6 +368,7 @@ class OperationApplicationService:
                 details={"status": "QUEUED"},
                 message_id=message_id,
             )
+        metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
     async def _inventory_resource_belongs(
@@ -456,6 +462,7 @@ class OperationApplicationService:
                 details={"status": "QUEUED"},
                 message_id=message_id,
             )
+        metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
     async def get(self, operation_id: uuid.UUID) -> OperationView:
@@ -514,6 +521,13 @@ class OperationApplicationService:
             items=items,
             page=OperationPageInfo(offset=offset, limit=limit, total=len(rows)),
         )
+
+    async def audit(self, operation_id: uuid.UUID) -> dict[str, object]:
+        operation = await self._repository.get_operation(operation_id)
+        if operation is None:
+            raise OperationNotFoundPublicError
+        events = await self._repository.get_events(operation_id)
+        return project_operation_audit(operation, events)
 
 
 def _uuid7() -> uuid.UUID:
