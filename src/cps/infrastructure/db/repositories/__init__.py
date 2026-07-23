@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from cps.infrastructure.db.repositories.inventory import (
+    InventoryBatchConflictError,
+    InventoryPersistenceError,
+    InventoryRepository,
+    InventorySyncIncompleteError,
+)
 from cps.infrastructure.db.repositories.operations import OperationRepository
 from cps.infrastructure.db.repositories.providers import (
     AddConnectionCommand,
@@ -18,6 +24,10 @@ __all__ = [
     "AddProviderCommand",
     "DuplicateProviderConnectionError",
     "OperationRepository",
+    "InventoryBatchConflictError",
+    "InventoryPersistenceError",
+    "InventoryRepository",
+    "InventorySyncIncompleteError",
     "ProviderPersistenceError",
     "ProviderRepository",
 ]

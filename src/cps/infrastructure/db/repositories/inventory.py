@@ -1,0 +1,315 @@
+"""Inventory sync and batch persistence with idempotent ingestion."""
+
+from __future__ import annotations
+
+import copy
+import uuid
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from cps.contracts.messages.inventory import InventoryBatchPayload, InventoryCollectionStatus
+from cps.identifiers import new_uuid7
+from cps.infrastructure.db.models.inventory import (
+    Flavor,
+    Image,
+    Instance,
+    Network,
+    Port,
+    Project,
+    Region,
+    Subnet,
+    Volume,
+)
+from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
+
+RESOURCE_MODELS: dict[str, Any] = {
+    "region": Region,
+    "project": Project,
+    "flavor": Flavor,
+    "image": Image,
+    "instance": Instance,
+    "network": Network,
+    "subnet": Subnet,
+    "port": Port,
+    "volume": Volume,
+}
+RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}
+RESOURCE_ALIASES["indices"] = "instance"
+
+
+class InventoryPersistenceError(RuntimeError):
+    """Stable error for invalid or conflicting inventory persistence."""
+
+
+class InventoryBatchConflictError(InventoryPersistenceError):
+    """A replayed batch identity has different immutable content."""
+
+
+class InventorySyncIncompleteError(InventoryPersistenceError):
+    """A sync cannot finalize because collection integrity is incomplete."""
+
+
+class InventoryRepository:
+    """Repository whose caller owns the transaction boundary."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create_sync(
+        self,
+        *,
+        sync_id: uuid.UUID,
+        operation_id: uuid.UUID,
+        provider_connection_id: uuid.UUID,
+        sync_type: str,
+        expected_collections: list[str],
+        target_resource_type: str | None = None,
+        target_provider_resource_id: str | None = None,
+    ) -> InventorySync:
+        sync = InventorySync(
+            id=sync_id,
+            operation_id=operation_id,
+            provider_connection_id=provider_connection_id,
+            sync_type=sync_type,
+            expected_collections=copy.deepcopy(expected_collections),
+            target_resource_type=target_resource_type,
+            target_provider_resource_id=target_provider_resource_id,
+        )
+        self._session.add(sync)
+        await self._session.flush()
+        return sync
+
+    async def get_sync(self, sync_id: uuid.UUID) -> InventorySync | None:
+        result = await self._session.execute(
+            select(InventorySync).where(InventorySync.id == sync_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_resource(self, resource_type: str, resource_id: uuid.UUID) -> Any | None:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(select(model).where(model.id == resource_id))
+        return result.scalar_one_or_none()
+
+    async def list_resources(
+        self,
+        resource_type: str,
+        *,
+        offset: int,
+        limit: int,
+        provider_connection_id: uuid.UUID | None = None,
+        provider_resource_id: str | None = None,
+        name: str | None = None,
+        include_deleted: bool = False,
+        sort: str = "created_at",
+        order: str = "asc",
+    ) -> tuple[list[Any], int]:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        filters = []
+        if provider_connection_id is not None:
+            filters.append(model.provider_connection_id == provider_connection_id)
+        if provider_resource_id is not None:
+            filters.append(model.provider_resource_id == provider_resource_id)
+        if name is not None:
+            filters.append(model.name.ilike(f"%{name}%"))
+        if not include_deleted:
+            filters.append(model.lifecycle_state != "DELETED")
+        total = int(
+            (
+                await self._session.execute(select(func.count()).select_from(model).where(*filters))
+            ).scalar_one()
+        )
+        column = {
+            "name": model.name,
+            "created_at": model.created_at,
+            "updated_at": model.updated_at,
+        }.get(sort, model.created_at)
+        direction = column.asc() if order == "asc" else column.desc()
+        tie = model.id.asc() if order == "asc" else model.id.desc()
+        result = await self._session.execute(
+            select(model).where(*filters).order_by(direction, tie).offset(offset).limit(limit)
+        )
+        return list(result.scalars()), total
+
+    async def persist_batch(
+        self,
+        *,
+        sync: InventorySync,
+        message_id: uuid.UUID,
+        provider_connection_id: uuid.UUID,
+        batch: InventoryBatchPayload,
+    ) -> InventoryBatch:
+        if batch.resource_type.value not in RESOURCE_MODELS:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        existing = await self._existing_batch(sync.id, batch)
+        if existing is not None:
+            if existing.checksum != batch.checksum:
+                raise InventoryBatchConflictError("inventory batch checksum conflict")
+            return existing
+
+        row = InventoryBatch(
+            id=new_uuid7(),
+            sync_id=sync.id,
+            message_id=message_id,
+            resource_type=batch.resource_type.value,
+            sequence=batch.sequence,
+            is_last=batch.is_last,
+            collection_status=batch.collection_status.value,
+            item_count=batch.item_count,
+            checksum=batch.checksum,
+            payload=batch.model_dump(mode="json"),
+        )
+        self._session.add(row)
+        await self._session.flush()
+        if batch.collection_status is InventoryCollectionStatus.COMPLETE:
+            for item in batch.items:
+                await self._upsert_resource(
+                    model=RESOURCE_MODELS[batch.resource_type.value],
+                    provider_connection_id=provider_connection_id,
+                    sync_id=sync.id,
+                    item=item.model_dump(mode="json", exclude_none=True),
+                )
+        if batch.is_last:
+            summary = (
+                sync.skipped_collections
+                if batch.collection_status is InventoryCollectionStatus.SKIPPED_UNSUPPORTED
+                else sync.completed_collections
+            )
+            if batch.resource_type.value not in summary:
+                summary.append(batch.resource_type.value)
+        return row
+
+    async def finalize_full_sync(self, sync_id: uuid.UUID) -> InventorySync:
+        sync = await self.get_sync(sync_id)
+        if sync is None:
+            raise InventoryPersistenceError("inventory sync not found")
+        expected = set(sync.expected_collections)
+        if sync.sync_type != "FULL":
+            raise InventorySyncIncompleteError("only full syncs can finalize reconciliation")
+        if sync.failed_collections:
+            raise InventorySyncIncompleteError("inventory sync has failed collections")
+        batches = list(
+            (
+                await self._session.execute(
+                    select(InventoryBatch)
+                    .where(InventoryBatch.sync_id == sync_id)
+                    .order_by(InventoryBatch.resource_type, InventoryBatch.sequence)
+                )
+            ).scalars()
+        )
+        grouped: dict[str, list[InventoryBatch]] = {}
+        for batch in batches:
+            grouped.setdefault(batch.resource_type, []).append(batch)
+        for resource_type in expected:
+            collection = grouped.get(resource_type, [])
+            if (
+                not collection
+                or [row.sequence for row in collection] != list(range(1, len(collection) + 1))
+                or not collection[-1].is_last
+            ):
+                raise InventorySyncIncompleteError("inventory sync collection is incomplete")
+            if collection[-1].collection_status not in {"COMPLETE", "SKIPPED_UNSUPPORTED"}:
+                raise InventorySyncIncompleteError("inventory sync collection status is invalid")
+        for resource_type, model in RESOURCE_MODELS.items():
+            if resource_type not in expected or resource_type in set(sync.skipped_collections):
+                continue
+            await self._session.execute(
+                update(model)
+                .where(
+                    model.provider_connection_id == sync.provider_connection_id,
+                    model.lifecycle_state == "ACTIVE",
+                    model.last_sync_id != sync.id,
+                )
+                .values(lifecycle_state="DELETED", deleted_at=datetime.now(UTC))
+            )
+        sync.state = "SUCCEEDED"
+        sync.completed_at = datetime.now(UTC)
+        await self._session.flush()
+        return sync
+
+    async def finalize_sync(self, sync_id: uuid.UUID) -> InventorySync:
+        sync = await self.get_sync(sync_id)
+        if sync is None:
+            raise InventoryPersistenceError("inventory sync not found")
+        if sync.sync_type == "FULL":
+            return await self.finalize_full_sync(sync_id)
+        expected = set(sync.expected_collections)
+        batches = list(
+            (
+                await self._session.execute(
+                    select(InventoryBatch)
+                    .where(InventoryBatch.sync_id == sync_id)
+                    .order_by(InventoryBatch.resource_type, InventoryBatch.sequence)
+                )
+            ).scalars()
+        )
+        grouped = {key: [row for row in batches if row.resource_type == key] for key in expected}
+        if not expected or any(
+            not rows
+            or [row.sequence for row in rows] != list(range(1, len(rows) + 1))
+            or not rows[-1].is_last
+            for rows in grouped.values()
+        ):
+            raise InventorySyncIncompleteError("targeted inventory refresh is incomplete")
+        sync.state = "SUCCEEDED"
+        sync.completed_at = datetime.now(UTC)
+        await self._session.flush()
+        return sync
+
+    async def _existing_batch(
+        self, sync_id: uuid.UUID, batch: InventoryBatchPayload
+    ) -> InventoryBatch | None:
+        result = await self._session.execute(
+            select(InventoryBatch).where(
+                InventoryBatch.sync_id == sync_id,
+                InventoryBatch.resource_type == batch.resource_type.value,
+                InventoryBatch.sequence == batch.sequence,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def _upsert_resource(
+        self,
+        *,
+        model: type[Any],
+        provider_connection_id: uuid.UUID,
+        sync_id: uuid.UUID,
+        item: dict[str, Any],
+    ) -> None:
+        now = datetime.now(UTC)
+        values: dict[str, Any] = {
+            "id": new_uuid7(),
+            "provider_connection_id": provider_connection_id,
+            "provider_resource_id": item["provider_resource_id"],
+            "name": item["name"],
+            "provider_status": item.get("provider_status"),
+            "last_seen_at": now,
+            "last_sync_id": sync_id,
+            "lifecycle_state": item.get("lifecycle_state", "ACTIVE"),
+            "deleted_at": None,
+            "provider_attributes": copy.deepcopy(item.get("attributes", {})),
+        }
+        statement = pg_insert(model).values(**values)
+        statement = statement.on_conflict_do_update(
+            index_elements=["provider_connection_id", "provider_resource_id"],
+            set_={
+                "name": statement.excluded.name,
+                "provider_status": statement.excluded.provider_status,
+                "last_seen_at": statement.excluded.last_seen_at,
+                "last_sync_id": statement.excluded.last_sync_id,
+                "lifecycle_state": statement.excluded.lifecycle_state,
+                "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
+                "provider_attributes": statement.excluded.provider_attributes,
+                "updated_at": now,
+            },
+        )
+        await self._session.execute(statement)

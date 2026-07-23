@@ -33,6 +33,19 @@ CORE_TABLES = frozenset(
         "operation_events",
         "outbox_messages",
         "inbox_messages",
+        "regions",
+        "projects",
+        "flavors",
+        "images",
+        "instances",
+        "networks",
+        "subnets",
+        "ports",
+        "volumes",
+        "instance_ports",
+        "instance_volumes",
+        "inventory_syncs",
+        "inventory_batches",
     }
 )
 

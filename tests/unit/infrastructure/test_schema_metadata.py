@@ -8,6 +8,20 @@ from sqlalchemy.orm import DeclarativeBase
 
 from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
+from cps.infrastructure.db.models.inventory import (
+    Flavor,
+    Image,
+    Instance,
+    InstancePort,
+    InstanceVolume,
+    Network,
+    Port,
+    Project,
+    Region,
+    Subnet,
+    Volume,
+)
+from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.operation_events import OperationEvent
 from cps.infrastructure.db.models.operations import Operation
 from cps.infrastructure.db.models.outbox_messages import OutboxMessage
@@ -22,6 +36,19 @@ MODELS: tuple[type[DeclarativeBase], ...] = (
     OperationEvent,
     OutboxMessage,
     InboxMessage,
+    Region,
+    Project,
+    Flavor,
+    Image,
+    Instance,
+    Network,
+    Subnet,
+    Port,
+    Volume,
+    InstancePort,
+    InstanceVolume,
+    InventorySync,
+    InventoryBatch,
 )
 
 TIMESTAMPTZ_COLUMNS: dict[type[DeclarativeBase], set[str]] = {
@@ -104,3 +131,42 @@ def test_named_unique_constraints_present() -> None:
 def test_outbox_created_at_uses_server_default() -> None:
     created_at = _column(OutboxMessage, "created_at")
     assert created_at.server_default is not None
+
+
+@pytest.mark.parametrize(
+    "model",
+    [Region, Project, Flavor, Image, Instance, Network, Subnet, Port, Volume],
+)
+def test_inventory_models_have_common_identity_and_lifecycle_fields(model) -> None:
+    columns = set(model.__table__.columns.keys())
+    assert {
+        "id",
+        "provider_connection_id",
+        "provider_resource_id",
+        "lifecycle_state",
+        "last_sync_id",
+        "provider_attributes",
+        "version",
+    } <= columns
+
+
+def test_inventory_identity_is_unique_per_connection() -> None:
+    for model in (Region, Project, Flavor, Image, Instance, Network, Subnet, Port, Volume):
+        unique_constraints = {
+            constraint.name for constraint in model.__table__.constraints if constraint.name
+        }
+        assert f"uq_{model.__tablename__}_connection_provider_resource" in unique_constraints
+
+
+def test_instance_relationships_are_typed_and_unique() -> None:
+    assert {"instance_id", "port_id", "device"} <= set(InstancePort.__table__.columns.keys())
+    assert {"instance_id", "volume_id", "device", "boot_index", "delete_on_termination"} <= set(
+        InstanceVolume.__table__.columns.keys()
+    )
+
+
+def test_inventory_sync_and_batch_constraints_are_named() -> None:
+    assert "uq_inventory_batches_sync_resource_sequence" in {
+        constraint.name for constraint in InventoryBatch.__table__.constraints
+    }
+    assert "operation_id" in InventorySync.__table__.columns

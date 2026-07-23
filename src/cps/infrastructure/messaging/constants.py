@@ -45,6 +45,9 @@ EVENT_ROUTING_KEYS = frozenset(
         "cloud.operation.progress",
         "cloud.operation.completed",
         "cloud.operation.failed",
+        "cloud.inventory.batch",
+        "cloud.inventory.completed",
+        "cloud.inventory.failed",
     }
 )
 

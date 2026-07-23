@@ -12,6 +12,7 @@ from pydantic import ValidationError as PydanticValidationError
 from cps.contracts.errors import CommonError
 from cps.contracts.messages.delivery import DeliveryMetadata, assert_strict_wire_header_types
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.inventory import InventoryBatchPayload
 from cps.contracts.validation import validate_validation_event
 
 _FORBIDDEN_SECRET_TOKENS = ("password", "token", "authorization", "user_data", "private_key")
@@ -80,6 +81,11 @@ def _validate_envelope_fixture(
             validate_validation_event(raw)
         except (TypeError, ValueError):
             return f"fixture failed validation event semantics: {label}"
+    if message_type == "cloud.inventory.batch":
+        try:
+            InventoryBatchPayload.model_validate(raw.get("payload", {}))
+        except (TypeError, ValueError):
+            return f"fixture failed inventory batch semantics: {label}"
     return None
 
 

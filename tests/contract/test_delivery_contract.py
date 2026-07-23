@@ -32,7 +32,7 @@ UNCHANGED_MANIFEST_ENTRIES = {
         "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/inventory_batch.json": (
-        "2f131ebe9a44f965c0b0b315c11955ccf9efca8fef03bdd70c49dd62a6647b8c"  # noqa: E501  # pragma: allowlist secret
+        "7297cb6a4eddea9af2953fd350de9c169cc75d61322689d63f31d965f4e26018"  # noqa: E501  # pragma: allowlist secret
     ),
     "fixtures/events/operation_completed.json": (
         "3783258a75de1b0bd13f313045a8476f640f025fc87a3f7586dec27496f43295"  # noqa: E501  # pragma: allowlist secret

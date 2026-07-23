@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequest
 from cps.api.schemas.operations import (
     OperationEventPage,
     OperationPage,
@@ -22,7 +23,7 @@ router = APIRouter(tags=["operations"])
 
 
 def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:
-    return OperationApplicationService(uow.operations, uow.outbox)
+    return OperationApplicationService(uow.operations, uow.outbox, uow.inventory)
 
 
 @router.post(
@@ -49,6 +50,60 @@ async def validate_connection(
         operation=operation,
         status_url=f"/api/v1/operations/{operation.id}",
     )
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/inventory-syncs",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_inventory_sync(
+    connection_id: uuid.UUID,
+    body: InventorySyncRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    operation = await _service(uow).create_inventory_sync(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        collections=body.collections,
+        batch_size=body.batch_size,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/inventory-refreshes",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_inventory_refresh(
+    connection_id: uuid.UUID,
+    body: InventoryRefreshRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    operation = await _service(uow).create_inventory_refresh(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        resource_type=body.resource_type,
+        provider_resource_id=body.provider_resource_id,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
 
 
 @router.get("/api/v1/operations", response_model=OperationPage)

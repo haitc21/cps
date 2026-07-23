@@ -18,10 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from cps.contracts.messages.delivery import DeliveryMetadata
 from cps.contracts.messages.envelope import MessageEnvelope
 from cps.contracts.messages.types import (
+    INVENTORY_BATCH,
+    INVENTORY_COMPLETED,
     OPERATION_COMPLETED,
     OPERATION_FAILED,
     OPERATION_PROGRESS,
 )
+from cps.domain.inventory.inbox_handler import InventoryEventError, InventoryInboxHandler
 from cps.domain.messaging.inbox import InboxProcessOutcome, InboxReceiveDraft
 from cps.domain.operations.errors import (
     ConcurrentUpdateError,
@@ -32,6 +35,7 @@ from cps.domain.operations.errors import (
     OperationPersistenceError,
 )
 from cps.domain.operations.inbox_handler import OperationInboxHandler, UnsupportedEventTypeError
+from cps.infrastructure.db.repositories.inventory import InventorySyncIncompleteError
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.infrastructure.messaging.constants import (
     DEFAULT_PREFETCH_COUNT,
@@ -53,6 +57,8 @@ logger = logging.getLogger(__name__)
 
 SUPPORTED_EVENT_TYPES = frozenset(
     {
+        INVENTORY_BATCH,
+        INVENTORY_COMPLETED,
         OPERATION_PROGRESS,
         OPERATION_COMPLETED,
         OPERATION_FAILED,
@@ -268,6 +274,7 @@ class EventInboxConsumer:
                 EventOwnershipMismatchError,
                 InvalidProgressStateError,
                 UnsupportedEventTypeError,
+                InventoryEventError,
             ):
                 await message.reject(requeue=False)
 
@@ -281,6 +288,7 @@ class EventInboxConsumer:
                 ConcurrentUpdateError,
                 OperationPersistenceError,
                 InvalidOperationTransitionError,
+                InventorySyncIncompleteError,
             ):
                 completed = await self._retry_or_reject(
                     message,
@@ -376,8 +384,10 @@ class EventInboxConsumer:
             inbox_id = insert_result.inbox_id
 
             handler = OperationInboxHandler(uow.operations)
-
-            await handler.handle(envelope)
+            if envelope.message_type in {INVENTORY_BATCH, INVENTORY_COMPLETED}:
+                await InventoryInboxHandler(uow.inventory, uow.operations).handle(envelope)
+            else:
+                await handler.handle(envelope)
 
             marked = await uow.inbox.mark_processed(inbox_id, now=now)
 
