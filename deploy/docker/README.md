@@ -23,6 +23,17 @@ credential resolver (`:8002`), CPS worker, OPS API (`:8001`), and OPS worker.
 OPS connects to the resolver through the Docker service name
 `http://cps-internal:8002`.
 
+For a credential-resolution demo, set a synthetic local key in `.env` before
+starting the services. The key is development-only and must never be reused in
+production:
+
+```bash
+python -c "import base64; print('v1:' + base64.b64encode(b'k' * 32).decode())"
+```
+
+Copy the printed value into `CPS_CREDENTIAL_KEY_RING`. Host processes use
+`http://127.0.0.1:8002`; containers use `http://cps-internal:8002`.
+
 Run the commands from this directory. RabbitMQ Management is available at
 <http://127.0.0.1:15672>.
 

@@ -222,11 +222,15 @@ From a clean checkout:
 
 ## Review evidence
 
-- Demo command/results:
-- OPS capability/version fixture:
-- Delete waiter/replay tests:
-- Mapper sanitizer tests:
-- Compose/Docker validation:
-- Production key-ring result:
-- P1 image hardening result:
+- Demo command/results: pending live Compose/OpenStack run.
+- OPS capability/version fixture: `tests/unit/openstack/test_discovery.py`, 3 passed.
+- Delete waiter/replay tests: waiter and handler delete suites passed; live
+  broker redelivery remains pending.
+- Mapper sanitizer tests: `tests/unit/openstack/test_inventory.py`, 6 passed.
+- Compose/Docker validation: Compose config valid; CPS/OPS images built and CLI
+  smoke-tested as UID 999.
+- Production key-ring result: CPS settings tests passed; missing/invalid ring
+  rejected in production.
+- P1 image hardening result: complete; pinned Python/uv digests and non-root
+  runtime verified.
 - Known limitations:

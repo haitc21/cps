@@ -59,6 +59,13 @@ class Settings(BaseSettings):
             missing.append("CPS_DATABASE_URL")
         if not self.rabbitmq_url:
             missing.append("CPS_RABBITMQ_URL")
+        if not self.credential_key_ring:
+            missing.append("CPS_CREDENTIAL_KEY_RING")
+        else:
+            try:
+                _ = self.require_credential_keys
+            except RuntimeError:
+                missing.append("CPS_CREDENTIAL_KEY_RING (invalid)")
         if missing:
             raise ValueError(f"missing required production settings: {', '.join(missing)}")
         return self
