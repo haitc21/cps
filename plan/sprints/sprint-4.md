@@ -1,6 +1,6 @@
 # Sprint 4 — VM lifecycle
 
-**Status:** Complete — code, regression gates, and live IMAGE lifecycle acceptance passed; VOLUME_FROM_IMAGE live gate is environment-blocked because Cinder has no public endpoint
+**Status:** Complete with provider caveat — code, regression gates, and both live boot paths passed; dev Nova/Cinder did not honor root-volume deletion on VM delete
 **Goal:** Create and operate OpenStack VMs through CPS/OPS with durable, idempotent lifecycle workflows for both supported boot modes.
 **Canonical design:** `docs/superpowers/specs/2026-07-16-openstack-cloud-provider-management-design.md`
 **Canonical executable plan:** `docs/superpowers/plans/2026-07-23-sprint-4-vm-lifecycle.md`
@@ -45,5 +45,6 @@
 - 2026-07-23: OPS-406 waiter primitive added with injectable clock/sleeper and target/error/timeout behavior; focused waiter tests pass. OPS-401 create mapping now covers both boot source request shapes, operation marker metadata, and base64 user-data forwarding without logging it.
 - 2026-07-23: CPS lifecycle command creation and OPS detail/start/stop/reboot/delete handler registration added; full contract/unit regression currently passes CPS `469 passed, 2 skipped` and OPS `331 passed, 2 skipped`. Persistence of normalized lifecycle results and real VM acceptance remain open before closure.
 - 2026-07-23: CPS operation completion now persists normalized instance results transactionally; OPS start/stop/reboot paths wait for target provider state and delete emits an idempotent DELETED result. Related port snapshots and root-volume policy are covered; live acceptance is recorded below.
-- 2026-07-23: Live OpenStack acceptance passed with temporary `compute02` instance: IMAGE create, GET, START, STOP, START, HARD REBOOT, and DELETE all reached `SUCCEEDED`; final `openstack server list --name compute02` was empty. SOFT REBOOT returned the dev cloud's stable 409 conflict; HARD REBOOT passed. Cinder inspection returned no public volume endpoint, so VOLUME_FROM_IMAGE remains covered by contract/unit tests but cannot be live-exercised in this environment.
+- 2026-07-23: Live OpenStack acceptance passed with temporary `compute02` instance: IMAGE create, GET, START, STOP, START, HARD REBOOT, and DELETE all reached `SUCCEEDED`; final `openstack server list --name compute02` was empty. SOFT REBOOT returned the dev cloud's stable 409 conflict; HARD REBOOT passed.
+- 2026-07-23: After Cinder became available, `VOLUME_FROM_IMAGE` create reached `SUCCEEDED` and CPS persisted the attached root volume relationship. VM DELETE reached `SUCCEEDED`, but the dev Nova/Cinder deployment left the root volume `in-use` despite `delete_on_termination=true`; the stale attachment and volume were cleaned manually. This is a provider behavior deviation requiring infrastructure remediation for a fully clean root-volume deletion gate.
 - 2026-07-23: Final gates pass: CPS `469 passed, 2 skipped`; OPS `331 passed, 2 skipped`; Ruff and mypy pass in both repositories; `git diff --check` passes.
