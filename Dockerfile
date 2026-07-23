@@ -24,6 +24,7 @@ RUN uv sync --frozen --no-dev \
 
 ENV PATH="/app/.venv/bin:${PATH}"
 
-EXPOSE 8000
+# The same image runs both the public API and the private resolver listener.
+EXPOSE 8000 8002
 
 CMD ["cps", "serve", "--host", "0.0.0.0", "--port", "8000"]

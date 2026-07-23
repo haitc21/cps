@@ -18,6 +18,11 @@ docker compose up -d --wait
 docker compose ps
 ```
 
+This also builds and starts the CPS public API (`:8000`), CPS internal
+credential resolver (`:8002`), CPS worker, OPS API (`:8001`), and OPS worker.
+OPS connects to the resolver through the Docker service name
+`http://cps-internal:8002`.
+
 Run the commands from this directory. RabbitMQ Management is available at
 <http://127.0.0.1:15672>.
 

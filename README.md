@@ -22,6 +22,22 @@ uv run cps serve --host 127.0.0.1 --port 8000
 uv run cps worker --once
 ```
 
+### Docker
+
+Build and run the public API:
+
+```bash
+docker build -t cmp-cps .
+docker run --rm --env-file .env -p 8000:8000 cmp-cps
+```
+
+Run the private credential resolver from the same image on port `8002`:
+
+```bash
+docker run --rm --env-file .env -p 8002:8002 cmp-cps \
+  cps serve --internal --host 0.0.0.0 --port 8002
+```
+
 ## Quality gates
 
 ```bash
