@@ -22,6 +22,8 @@ class InventoryResourceType(StrEnum):
     SUBNET = "subnet"
     PORT = "port"
     VOLUME = "volume"
+    ROLE_ASSIGNMENT = "role-assignment"
+    QUOTA = "quota"
 
 
 class InventoryCollectionStatus(StrEnum):

@@ -99,6 +99,31 @@ class Project(Base, InventoryResourceMixin):
     enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
+class RoleAssignment(Base, InventoryResourceMixin):
+    """Normalized Keystone role assignment (no principal credentials)."""
+
+    __tablename__ = "role_assignments"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    principal_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    principal_provider_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    role_provider_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    scope_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    scope_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    inherited: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
+
+class Quota(Base, InventoryResourceMixin):
+    """A service quota snapshot. ``-1`` is represented by ``unlimited``."""
+
+    __tablename__ = "quotas"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    service: Mapped[str] = mapped_column(String(32), nullable=False)
+    resource_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    limit_value: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    in_use: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    unlimited: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
+
 class Flavor(Base, InventoryResourceMixin):
     __tablename__ = "flavors"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)

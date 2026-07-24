@@ -28,6 +28,17 @@ class InventoryResourceView(BaseModel):
     owner_domain_provider_resource_id: str | None = None
     owner_project_provider_resource_id: str | None = None
     enabled: bool | None = None
+    principal_type: str | None = None
+    principal_provider_resource_id: str | None = None
+    role_provider_resource_id: str | None = None
+    scope_kind: str | None = None
+    scope_provider_resource_id: str | None = None
+    inherited: bool | None = None
+    service: str | None = None
+    resource_name: str | None = None
+    limit_value: int | None = None
+    in_use: int | None = None
+    unlimited: bool | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -51,6 +62,8 @@ class InventorySyncRequest(BaseModel):
             "port",
             "volume",
             "instance",
+            "role-assignment",
+            "quota",
         ],
         min_length=1,
     )

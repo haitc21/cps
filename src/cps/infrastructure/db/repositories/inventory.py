@@ -23,7 +23,9 @@ from cps.infrastructure.db.models.inventory import (
     Network,
     Port,
     Project,
+    Quota,
     Region,
+    RoleAssignment,
     Subnet,
     Volume,
 )
@@ -34,6 +36,8 @@ RESOURCE_MODELS: dict[str, Any] = {
     "domain": IdentityDomain,
     "region": Region,
     "project": Project,
+    "role-assignment": RoleAssignment,
+    "quota": Quota,
     "flavor": Flavor,
     "image": Image,
     "instance": Instance,
@@ -44,6 +48,9 @@ RESOURCE_MODELS: dict[str, Any] = {
 }
 RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}
 RESOURCE_ALIASES.update({"identity-domains": "domain", "identity_domain": "domain"})
+RESOURCE_ALIASES.update(
+    {"role-assignments": "role-assignment", "role_assignment": "role-assignment", "quotas": "quota"}
+)
 RESOURCE_ALIASES["indices"] = "instance"
 
 
@@ -456,6 +463,34 @@ class InventoryRepository:
                 if "enabled" in item
                 else item.get("attributes", {}).get("enabled")
             )
+        if model is RoleAssignment:
+            attrs = item.get("attributes", {})
+            values.update(
+                principal_type=item.get("principal_type", attrs.get("principal_type", "user")),
+                principal_provider_resource_id=item.get(
+                    "principal_provider_resource_id",
+                    attrs.get("principal_provider_resource_id", item["provider_resource_id"]),
+                ),
+                role_provider_resource_id=item.get(
+                    "role_provider_resource_id", attrs.get("role_provider_resource_id", "unknown")
+                ),
+                scope_kind=item.get("scope_kind", attrs.get("scope_kind", "PROJECT")),
+                scope_provider_resource_id=item.get(
+                    "scope_provider_resource_id", attrs.get("scope_provider_resource_id")
+                ),
+                inherited=bool(item.get("inherited", attrs.get("inherited", False))),
+            )
+        if model is Quota:
+            attrs = item.get("attributes", {})
+            raw_limit = item.get("limit_value", attrs.get("limit_value"))
+            unlimited = bool(item.get("unlimited", attrs.get("unlimited", raw_limit == -1)))
+            values.update(
+                service=item.get("service", attrs.get("service", "unknown")),
+                resource_name=item.get("resource_name", attrs.get("resource_name", item["name"])),
+                limit_value=None if unlimited else raw_limit,
+                in_use=item.get("in_use", attrs.get("in_use")),
+                unlimited=unlimited,
+            )
         statement = pg_insert(model).values(**values)
         statement = statement.on_conflict_do_update(
             index_elements=["provider_connection_id", "provider_resource_id"],
@@ -507,5 +542,19 @@ class InventoryRepository:
                     "enabled": statement.excluded.enabled,
                     "updated_at": now,
                 },
+            )
+        elif model in (RoleAssignment, Quota):
+            # Keep all typed fields synchronized while preserving the generic
+            # provider attributes used by older consumers.
+            typed = {
+                c.name: statement.excluded[c.name]
+                for c in model.__table__.columns
+                if c.name in values
+                and c.name not in {"id", "provider_connection_id", "provider_resource_id"}
+            }
+            typed.update({"updated_at": now})
+            statement = statement.on_conflict_do_update(
+                index_elements=["provider_connection_id", "provider_resource_id"],
+                set_=typed,
             )
         await self._session.execute(statement)

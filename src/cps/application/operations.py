@@ -19,9 +19,26 @@ from cps.contracts.errors import (
     ProviderConnectionNotFoundError,
 )
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.identity import (
+    IdentityOperation,
+    IdentityResourceRequest,
+    QuotaRequest,
+    RoleAssignmentRequest,
+)
 from cps.contracts.messages.instance import InstanceAction, InstanceCreateRequest
+from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    IDENTITY_DOMAIN_CREATE,
+    IDENTITY_DOMAIN_DELETE,
+    IDENTITY_DOMAIN_UPDATE,
+    IDENTITY_PROJECT_CREATE,
+    IDENTITY_PROJECT_DELETE,
+    IDENTITY_PROJECT_UPDATE,
+    IDENTITY_QUOTA_READ,
+    IDENTITY_QUOTA_UPDATE,
+    IDENTITY_ROLE_ENSURE,
+    IDENTITY_ROLE_REVOKE,
     INSTANCE_CREATE,
     INSTANCE_DELETE,
     INSTANCE_GET,
@@ -448,6 +465,157 @@ class OperationApplicationService:
                 provider_connection_id=connection.id,
                 operation_type=message_type,
                 request_payload=request_payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        metrics.increment("cps_operations_created_total")
+        return to_view(operation)
+
+    async def create_identity_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: IdentityResourceRequest | RoleAssignmentRequest | QuotaRequest,
+    ) -> OperationView:
+        """Create a typed identity operation with one durable outbox command."""
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None:
+            raise ProviderConnectionNotFoundError
+        if request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        message_type: str
+        payload = request.model_dump(
+            mode="json", exclude={"operation_id", "provider_connection_id"}
+        )
+        if isinstance(request, IdentityResourceRequest) and request.operation.value == "disable":
+            payload["enabled"] = False
+        if isinstance(request, IdentityResourceRequest):
+            prefix = "domain" if request.resource_type == "domain" else "project"
+            message_type = {
+                ("domain", "create"): IDENTITY_DOMAIN_CREATE,
+                ("domain", "update"): IDENTITY_DOMAIN_UPDATE,
+                ("domain", "disable"): IDENTITY_DOMAIN_UPDATE,
+                ("domain", "delete"): IDENTITY_DOMAIN_DELETE,
+                ("project", "create"): IDENTITY_PROJECT_CREATE,
+                ("project", "update"): IDENTITY_PROJECT_UPDATE,
+                ("project", "disable"): IDENTITY_PROJECT_UPDATE,
+                ("project", "delete"): IDENTITY_PROJECT_DELETE,
+            }[(prefix, request.operation.value)]
+            parameters = {
+                key: value
+                for key, value in {
+                    "name": request.name,
+                    "description": request.description,
+                    "enabled": request.enabled,
+                    "domain_id": request.domain_provider_resource_id,
+                }.items()
+                if value is not None
+            }
+            payload = {
+                "operation_id": str(request.operation_id),
+                "resource_type": request.resource_type,
+                "operation": "update"
+                if request.operation is IdentityOperation.DISABLE
+                else request.operation.value,
+                "required_scope": request.required_scope.value,
+                "provider_connection_id": str(connection.id),
+                "provider_resource_id": request.provider_resource_id,
+                "parameters": parameters,
+            }
+        elif isinstance(request, RoleAssignmentRequest):
+            message_type = (
+                IDENTITY_ROLE_ENSURE if request.operation == "ensure" else IDENTITY_ROLE_REVOKE
+            )
+            payload = {
+                "operation_id": str(request.operation_id),
+                "resource_type": "role_assignment",
+                "operation": request.operation,
+                "required_scope": request.required_scope.value,
+                "provider_connection_id": str(connection.id),
+                "provider_resource_id": None,
+                "parameters": {
+                    "role": request.role_provider_resource_id,
+                    "user": request.principal_provider_resource_id
+                    if request.principal_type == "user"
+                    else None,
+                    "group": request.principal_provider_resource_id
+                    if request.principal_type == "group"
+                    else None,
+                    "project": request.scope_provider_resource_id
+                    if request.required_scope is ScopeKind.PROJECT
+                    else None,
+                    "domain": request.scope_provider_resource_id
+                    if request.required_scope is ScopeKind.DOMAIN
+                    else None,
+                },
+            }
+        else:
+            message_type = (
+                IDENTITY_QUOTA_READ if request.operation == "read" else IDENTITY_QUOTA_UPDATE
+            )
+            quota_parameters: dict[str, object] = {
+                "service": request.service.replace("-", "_"),
+                "project_id": request.project_provider_resource_id,
+            }
+            quota_parameters.update({item.resource_name: item.limit for item in request.quotas})
+            payload = {
+                "operation_id": str(request.operation_id),
+                "resource_type": "quota",
+                "operation": request.operation,
+                "required_scope": request.required_scope.value,
+                "provider_connection_id": str(connection.id),
+                "provider_resource_id": request.project_provider_resource_id,
+                "parameters": quota_parameters,
+            }
+        operation_id = request.operation_id
+        message_id = _uuid7()
+        occurred_at = datetime.now(UTC)
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "credential_reference": connection.credential_id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
                 correlation_id=correlation_id,
                 idempotency_key=idempotency_key,
                 operation_id=operation_id,

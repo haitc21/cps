@@ -14,7 +14,9 @@ from cps.infrastructure.db.models.inventory import (
     Network,
     Port,
     Project,
+    Quota,
     Region,
+    RoleAssignment,
     Subnet,
     Volume,
 )
@@ -31,6 +33,8 @@ __all__ = [
     "Region",
     "IdentityDomain",
     "Project",
+    "RoleAssignment",
+    "Quota",
     "Flavor",
     "Image",
     "Instance",

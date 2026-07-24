@@ -8,6 +8,11 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.schemas.identity import (
+    IdentityLifecycleRequest,
+    QuotaRequestBody,
+    RoleAssignmentRequestBody,
+)
 from cps.api.schemas.instance import InstanceActionRequest, InstanceCreateRequest
 from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequest
 from cps.api.schemas.operations import (
@@ -17,6 +22,13 @@ from cps.api.schemas.operations import (
     ValidationAccepted,
 )
 from cps.application.operations import OperationApplicationService
+from cps.contracts.messages.identity import (
+    IdentityOperation,
+    IdentityResourceRequest,
+    QuotaRequest,
+    RoleAssignmentRequest,
+)
+from cps.contracts.messages.resource_operations import ScopeKind
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -25,6 +37,109 @@ router = APIRouter(tags=["operations"])
 
 def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:
     return OperationApplicationService(uow.operations, uow.outbox, uow.inventory)
+
+
+IdentityRequest = IdentityResourceRequest | RoleAssignmentRequest | QuotaRequest
+
+
+async def _identity_operation(
+    connection_id: uuid.UUID,
+    request: IdentityRequest,
+    http_request: Request,
+    idempotency_key: str | None,
+    uow: SqlAlchemyUnitOfWork,
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    operation = await _service(uow).create_identity_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(http_request.state.correlation_id),
+        request=request,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/{resource_type}/{action}",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def identity_lifecycle(
+    connection_id: uuid.UUID,
+    resource_type: str,
+    action: str,
+    body: IdentityLifecycleRequest,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if resource_type not in {"domains", "projects"} or action not in {
+        "create",
+        "update",
+        "disable",
+        "delete",
+    }:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("unsupported identity resource/action")
+    singular = resource_type[:-1]
+    payload = body.model_dump(exclude_none=True)
+    typed = IdentityResourceRequest(
+        operation_id=uuid.uuid4(),
+        resource_type=singular,
+        operation=IdentityOperation(action),
+        required_scope=ScopeKind.DOMAIN if singular == "domain" else ScopeKind.PROJECT,
+        provider_connection_id=connection_id,
+        **payload,
+    )
+    return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/role-assignments",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def role_assignment(
+    connection_id: uuid.UUID,
+    body: RoleAssignmentRequestBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    role_payload = body.model_dump(exclude={"scope_kind"})
+    typed = RoleAssignmentRequest(
+        operation_id=uuid.uuid4(),
+        provider_connection_id=connection_id,
+        required_scope=body.scope_kind,
+        **role_payload,
+    )
+    return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/quotas",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def quota_operation(
+    connection_id: uuid.UUID,
+    body: QuotaRequestBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    typed = QuotaRequest(
+        operation_id=uuid.uuid4(),
+        provider_connection_id=connection_id,
+        required_scope=ScopeKind.PROJECT,
+        **body.model_dump(),
+    )
+    return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
 
 
 @router.post(

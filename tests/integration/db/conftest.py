@@ -47,6 +47,8 @@ CORE_TABLES = frozenset(
         "instance_volumes",
         "inventory_syncs",
         "inventory_batches",
+        "role_assignments",
+        "quotas",
     }
 )
 
