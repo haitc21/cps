@@ -7,7 +7,7 @@
 
 ## Product goal
 
-Deliver CPS as the durable, provider-neutral control plane that manages OpenStack provider connections, credentials, inventory, and VM operations through OPS. Each sprint must produce an integrated, testable increment and preserve the future Keycloak, TMS, LMS, and VMware extension boundaries.
+Deliver CPS as the durable, provider-neutral control plane that manages OpenStack provider onboarding, inventory, and VM operations through OPS. Each sprint must produce an integrated, testable increment and preserve the future Keycloak, TMS, LMS, and VMware extension boundaries.
 
 ## Working agreement
 
@@ -49,18 +49,19 @@ A story is done when:
 |---|---|---|---|
 | 0 | Reproducible engineering foundation | Python 3.12 project, CI, config, health, DB/Rabbit infrastructure | CPS and OPS build/test from clean checkout with pinned locks |
 | 1 | Stable contracts and durable operation core | Common schemas, operation state machine, DB foundations, inbox/outbox skeleton | Golden command/event fixtures validate in both repos |
-| 2 | First end-to-end provider workflow | Provider/credential/connection API and async validation operation | Real OpenStack connection validates and capabilities persist |
+| 2 | First end-to-end provider workflow | Provider onboarding API and async validation operation | Real OpenStack provider validates and capabilities persist |
 | 3 | Convergent inventory | Typed inventory DB/API, full-sync batching/finalization, targeted refresh | All scoped resources sync from real OpenStack without unsafe deletion |
 | 4 | VM lifecycle | Create/detail/start/stop/reboot/delete APIs and operation handling | Both boot modes and lifecycle actions pass end-to-end |
 | 5 | Recovery and release readiness | Scheduler, timeout reconciliation, DLQ operations, observability, restart tests | Acceptance suite passes across restart/redelivery/direct drift scenarios |
 | 6 | Design alignment and demo readiness | Close capability, convergence, security, mapping, and runtime-image gaps | Local demo reflects the approved first-delivery design |
-| 7 | Scoped connection and identity inventory | Explicit connection scope plus domain/project contracts and inventory | Administrative scope and identity inventory validate end-to-end |
+| 7 | Scoped provider and identity inventory | Explicit scope plus domain/project contracts and inventory | Administrative scope and identity inventory validate end-to-end |
 | 8 | Identity lifecycle and quotas | Domain/project, role assignment, and quota operations | Disposable identity lifecycle passes with verified cleanup |
 | 9 | Network resource control | Network topology, security, port, router, and floating-IP lifecycle | Complete disposable topology is managed without manual provider mutation |
-| 10 | Storage and provider catalog control | Volume/snapshot, image, availability-zone, and flavor lifecycle | Storage/catalog operations converge through CPS/OPS |
-| 11 | Expanded control-plane release | Cross-resource drift, recovery, upgrade, and compatibility acceptance | Target OpenStack release matrix and cleanup gates pass |
+| 10 | OpenStack tenant binding and ownership APIs | Explicit domain/project create and CMP binding persistence | CMP can request domain/project creation without inventory inference |
+| 11 | Storage and provider catalog control | Volume/snapshot, image, availability-zone, and flavor lifecycle | Storage/catalog operations converge through CPS/OPS |
+| 12 | Expanded control-plane release | Cross-resource drift, recovery, upgrade, and compatibility acceptance | Target OpenStack release matrix and cleanup gates pass |
 
-Sprints 7–11 are forecasts governed by
+Sprints 7–12 are forecasts governed by
 `docs/superpowers/specs/2026-07-24-openstack-resource-control-plane-expansion-design.md`.
 They do not start until the design delta is approved and Sprint Planning
 selects ready stories.

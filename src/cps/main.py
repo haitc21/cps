@@ -9,8 +9,6 @@ from fastapi import FastAPI
 
 from cps.api.errors import register_error_handlers
 from cps.api.health import router as health_router
-from cps.api.routers.connections import router as connections_router
-from cps.api.routers.credentials import router as credentials_router
 from cps.api.routers.inventory import router as inventory_router
 from cps.api.routers.operations import router as operations_router
 from cps.api.routers.providers import router as providers_router
@@ -57,8 +55,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved = settings or get_settings()
     app, _engine = _create_base_app(resolved, title="CPS")
     app.include_router(providers_router)
-    app.include_router(credentials_router)
-    app.include_router(connections_router)
     app.include_router(operations_router)
     app.include_router(inventory_router)
     return app

@@ -2,6 +2,11 @@
 
 Priorities use Must/Should/Could. Sprint allocation is the initial forecast and may change during refinement without changing dependencies or acceptance criteria.
 
+Current public model note: provider onboarding uses one `provider` aggregate only.
+`credential` and `provider connection` are internal implementation details from
+earlier iterations and should not be treated as separate public business
+objects in new work.
+
 ## Epic CPS-E0 — Engineering foundation
 
 ### CPS-001 — Bootstrap a reproducible Python service
@@ -75,6 +80,11 @@ Priorities use Must/Should/Could. Sprint allocation is the initial forecast and 
 
 ## Epic CPS-E2 — Provider connection vertical slice
 
+Legacy implementation note: this epic reflects the earlier CPS split between
+provider, credential, and provider connection. The current public model uses a
+single provider aggregate; treat these stories as historical/internal unless a
+future migration explicitly reopens them.
+
 ### CPS-201 — Provider CRUD API
 
 - **Sprint/Priority/Points:** 2 / Must / 5
@@ -113,6 +123,21 @@ Priorities use Must/Should/Could. Sprint allocation is the initial forecast and 
 - **Sprint/Priority/Points:** 2 / Must / 5
 - **Depends on:** CPS-104
 - **Acceptance:** list/get/events support stable pagination/filtering; terminal result/error is safe; unknown operation returns normalized 404.
+
+### CPS-207 — Single-endpoint provider onboarding
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** CPS-201, CPS-202, CPS-203
+- **Tasks:** one public provider endpoint that accepts provider type, endpoint,
+  and highest-privilege admin account in a single request; secret material
+  remains internally encrypted on the provider aggregate; no public credential
+  or connection CRUD; validation and provider-specific metadata reuse the same
+  provider row.
+- **Acceptance:** CMP admin creates a provider through one endpoint only;
+  provider scope is not selected by the user and is assumed to be privileged
+  enough for identity/control-plane operations; public responses never expose
+  secret material; later binding APIs reuse the same provider aggregate and do
+  not require a separate credential or connection object.
 
 ## Epic CPS-E3 — Inventory and reconciliation
 
@@ -249,6 +274,21 @@ Priorities use Must/Should/Could. Sprint allocation is the initial forecast and 
 - **Acceptance:** domain and owner-aware project inventory reconcile without
   name-based merging or cross-connection duplication; partial sync never
   deletes; list/get filters and targeted tombstones work.
+
+### CPS-704 — CMP-owned domain/project binding APIs
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** CPS-702, CPS-703
+- **Tasks:** explicit create/list/get APIs for OpenStack domain/project
+  bindings; binding tables or rows that persist `org_id` for domains and
+  `org_id + workspace_id` for projects; idempotent natural-key create;
+  conflict-on-name-collision without binding adoption; inventory remains
+  read-only for ownership.
+- **Acceptance:** CMP can request CPS to create an OpenStack domain from an
+  `org_id` and an OpenStack project from an `org_id + workspace_id`; the
+  binding row is the source of truth; inventory refresh cannot create or
+  reassign bindings; schema keeps provider type and binding kind explicit for
+  later VMware support.
 
 ## Epic CPS-E8 — Identity lifecycle and quotas
 

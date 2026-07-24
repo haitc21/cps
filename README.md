@@ -1,7 +1,7 @@
 # CPS
 
 Cloud Provider Management Service — provider-neutral control plane for OpenStack
-provider connections, credentials, inventory, and VM operations via OPS.
+provider onboarding, inventory, and VM operations via OPS.
 
 ## Requirements
 
@@ -31,7 +31,7 @@ docker build -t cmp-cps .
 docker run --rm --env-file .env -p 8000:8000 cmp-cps
 ```
 
-Run the private credential resolver from the same image on port `8002`:
+Run the private CPS internal listener from the same image on port `8002`:
 
 ```bash
 docker run --rm --env-file .env -p 8002:8002 cmp-cps \
