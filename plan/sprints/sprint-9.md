@@ -3,8 +3,8 @@
 **Status:** Implementation complete; internal connectivity acceptance covered by tests  
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 58 combined points  
-**Sprint Goal:** Create, reconcile, and remove an internal OpenStack network
-topology that can be attached to a VM and used for private connectivity.
+**Sprint Goal:** Create, reconcile, and remove an OpenStack network topology
+that lets computers on the corporate LAN reach a VM.
 
 **Canonical design:**
 `docs/superpowers/specs/2026-07-24-openstack-resource-control-plane-expansion-design.md`
@@ -22,7 +22,7 @@ topology that can be attached to a VM and used for private connectivity.
 
 ## Delivery tasks
 
-- [x] Confirm internal-network connectivity as the primary acceptance target.
+- [x] Confirm corporate-LAN connectivity as the primary acceptance target.
 - [x] Define network operation contracts and ownership relationships.
 - [x] Add typed network/security/floating-IP inventory and migrations.
 - [x] Implement idempotent network/subnet/router/interface operations.
@@ -34,10 +34,10 @@ topology that can be attached to a VM and used for private connectivity.
 
 ## Acceptance
 
-- A project-scoped connection can create a private network, subnet, port, and security rules.
-- A VM can attach to the resulting port and receive a private address usable from the internal network.
+- A project-scoped connection can create a private network, subnet, port, security rules, and the required external/provider-network path.
+- A VM returns a floating IP or provider-network IP reachable from a laptop on the corporate LAN.
 - Router/interface operations preserve topology and recover from replay or partial relationship failure.
-- External/shared/floating-IP operations are capability-gated and optional to the internal target.
+- External/shared/floating-IP operations are capability-gated and required for corporate-LAN access unless a provider network directly assigns a LAN address.
 - Cleanup removes topology resources without deleting user-owned resources.
 
 ## Risks and impediments
@@ -50,11 +50,11 @@ topology that can be attached to a VM and used for private connectivity.
 
 ## Review evidence
 
-- Demo scenario: create network/subnet/port/security resources, attach a VM, and return its private address.
+- Demo scenario: create network/subnet/port/security resources, attach a VM, allocate/associate a floating or provider-network address, and connect from the corporate LAN.
 - Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `358 passed, 24 skipped`; CPS DB integration `146 passed`; migration `20260724_0008` verified.
 - Contract checksum: network requests map to the pinned generic resource-operation envelope.
-- Internal connectivity result: private-address path is implemented and covered by lifecycle/handler tests; live provider acceptance remains environment-dependent.
-- Known limitations: floating-IP/public reachability is optional and not required for internal connectivity.
+- Internal connectivity result: private topology path is implemented; corporate-LAN reachability requires live floating/provider-network acceptance.
+- Known limitations: the current live environment still needs a routable external network and security-group ingress validation.
 
 ## Retrospective actions
 

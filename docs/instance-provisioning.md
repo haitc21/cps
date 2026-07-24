@@ -28,10 +28,14 @@ decisions explicit.
    intentionally mutually exclusive with `ssh_public_key`.
 3. OPS creates the server with explicit networks/ports, security groups,
    keypair, metadata, user-data, and either image boot or image-to-volume boot.
-4. If `floating_network_provider_resource_id` is supplied, OPS allocates a
-   floating IP, associates it with the server, and returns `access.ssh` with
-   the username, host, port, and keypair name. The private key never crosses
-   CPS/OPS and must remain with the caller.
+4. For access from the corporate LAN, the request must either attach the VM to
+   a provider network mapped to that LAN or supply
+   `floating_network_provider_resource_id`. In the latter case OPS allocates a
+   floating IP and associates it with the server. The completed event returns
+   `access.ssh.host`/`hosts` with the LAN-reachable address. A tenant-only
+   private network is not reachable from a laptop on the physical LAN without
+   routing, provider-network mapping, or a floating IP. The private key never
+   crosses CPS/OPS and must remain with the caller.
 5. Delete removes the server and cleans up floating IPs and keypairs that OPS
    marked as managed for that operation. User-supplied keypairs are not
    deleted.
