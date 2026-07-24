@@ -79,11 +79,23 @@ class Region(Base, InventoryResourceMixin):
     )
 
 
+class IdentityDomain(Base, InventoryResourceMixin):
+    __tablename__ = "identity_domains"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+
 class Project(Base, InventoryResourceMixin):
     __tablename__ = "projects"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     domain_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     domain_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    owner_domain_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    owner_project_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 

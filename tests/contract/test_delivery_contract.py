@@ -56,6 +56,9 @@ EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
         "jsonschema/capability_document.schema.json",
         "jsonschema/credential_resolution.schema.json",
         "jsonschema/delivery_metadata.schema.json",
+        "fixtures/resource_operations/request.json",
+        "fixtures/resource_operations/result.json",
+        "jsonschema/resource_operation.schema.json",
     }
 )
 
@@ -432,4 +435,4 @@ def test_semantic_validation_includes_transport_fixture() -> None:
 
     fixture_count, error = validate_contract_semantics(ROOT)
     assert error is None
-    assert fixture_count == 7
+    assert fixture_count == 9

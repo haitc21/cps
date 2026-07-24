@@ -66,6 +66,9 @@ class AddConnectionCommand:
     project_name: str
     region_name: str
     auth_url: str
+    scope_kind: str = "PROJECT"
+    scope_domain_provider_resource_id: str | None = None
+    scope_project_provider_resource_id: str | None = None
     project_domain_name: str = "Default"
     interface: str = "public"
     verify_tls: bool = True
@@ -161,6 +164,9 @@ class ProviderRepository:
             id=command.connection_id,
             provider_id=command.provider_id,
             credential_id=command.credential_id,
+            scope_kind=command.scope_kind,
+            scope_domain_provider_resource_id=command.scope_domain_provider_resource_id,
+            scope_project_provider_resource_id=command.scope_project_provider_resource_id,
             project_name=command.project_name,
             project_domain_name=command.project_domain_name,
             region_name=command.region_name,

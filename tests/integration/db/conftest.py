@@ -34,6 +34,7 @@ CORE_TABLES = frozenset(
         "outbox_messages",
         "inbox_messages",
         "regions",
+        "identity_domains",
         "projects",
         "flavors",
         "images",
@@ -52,6 +53,7 @@ CORE_TABLES = frozenset(
 ENUM_TYPES = (
     "provider_status",
     "connection_status",
+    "connection_scope_kind",
     "operation_state",
     "outbox_publish_state",
     "inbox_process_state",

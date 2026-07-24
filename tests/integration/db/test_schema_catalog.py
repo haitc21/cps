@@ -64,6 +64,7 @@ NORMAL_INDEXES = {
     "providers": {"ix_providers_name", "ix_providers_status"},
     "provider_connections": {
         "ix_provider_connections_provider_id",
+        "ix_provider_connections_scope_kind",
         "ix_provider_connections_status",
     },
     "operations": {
@@ -104,6 +105,7 @@ CHECKS = {
 ENUMS = {
     "provider_status": ["ACTIVE", "DISABLED"],
     "connection_status": ["PENDING_VALIDATION", "VALID", "INVALID", "DISABLED"],
+    "connection_scope_kind": ["SYSTEM", "DOMAIN", "PROJECT"],
     "operation_state": [
         "ACCEPTED",
         "QUEUED",
@@ -212,6 +214,25 @@ def test_operations_has_no_provider_id(
 ) -> None:
     columns = table_columns(db_admin_conn, "operations")
     assert "provider_id" not in columns
+
+
+def test_sprint7_scope_and_identity_columns_exist(
+    migrated_database: str, db_admin_conn: psycopg.Connection
+) -> None:
+    connection_columns = table_columns(db_admin_conn, "provider_connections")
+    assert {
+        "scope_kind",
+        "scope_domain_provider_resource_id",
+        "scope_project_provider_resource_id",
+    }.issubset(connection_columns)
+    project_columns = table_columns(db_admin_conn, "projects")
+    assert {
+        "owner_domain_provider_resource_id",
+        "owner_project_provider_resource_id",
+    }.issubset(project_columns)
+    assert {"id", "provider_connection_id", "provider_resource_id", "enabled"}.issubset(
+        table_columns(db_admin_conn, "identity_domains")
+    )
 
 
 @pytest.mark.parametrize("enum_name,labels", list(ENUMS.items()))

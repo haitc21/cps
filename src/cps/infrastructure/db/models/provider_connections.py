@@ -22,7 +22,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from cps.infrastructure.db.base import Base
 from cps.infrastructure.db.models._mixins import TimestampMixin, VersionMixin
-from cps.infrastructure.db.models.enums import ConnectionStatus
+from cps.infrastructure.db.models.enums import ConnectionScopeKind, ConnectionStatus
 
 
 class ProviderConnection(Base, TimestampMixin, VersionMixin):
@@ -42,6 +42,7 @@ class ProviderConnection(Base, TimestampMixin, VersionMixin):
         CheckConstraint("version > 0", name="version_positive"),
         Index("ix_provider_connections_provider_id", "provider_id"),
         Index("ix_provider_connections_status", "status"),
+        Index("ix_provider_connections_scope_kind", "scope_kind"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
@@ -54,6 +55,17 @@ class ProviderConnection(Base, TimestampMixin, VersionMixin):
         nullable=False,
     )
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    scope_kind: Mapped[ConnectionScopeKind] = mapped_column(
+        Enum(ConnectionScopeKind, name="connection_scope_kind", native_enum=True),
+        nullable=False,
+        server_default=ConnectionScopeKind.PROJECT.name,
+    )
+    scope_domain_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    scope_project_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
     project_domain_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,

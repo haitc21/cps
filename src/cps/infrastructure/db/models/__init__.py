@@ -6,6 +6,7 @@ from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
     Flavor,
+    IdentityDomain,
     Image,
     Instance,
     InstancePort,
@@ -28,6 +29,7 @@ __all__ = [
     "Credential",
     "InboxMessage",
     "Region",
+    "IdentityDomain",
     "Project",
     "Flavor",
     "Image",

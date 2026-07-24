@@ -35,6 +35,9 @@ def to_view(connection: ProviderConnection) -> ConnectionView:
         {
             "id": connection.id,
             "provider_id": connection.provider_id,
+            "scope_kind": connection.scope_kind,
+            "scope_domain_provider_resource_id": connection.scope_domain_provider_resource_id,
+            "scope_project_provider_resource_id": connection.scope_project_provider_resource_id,
             "project_name": connection.project_name,
             "project_domain_name": connection.project_domain_name,
             "region_name": connection.region_name,
@@ -120,6 +123,9 @@ class ConnectionService:
             raise CredentialNotFoundError
         material = {
             "credential_id",
+            "scope_kind",
+            "scope_domain_provider_resource_id",
+            "scope_project_provider_resource_id",
             "auth_url",
             "project_name",
             "project_domain_name",
@@ -135,6 +141,14 @@ class ConnectionService:
                 validation_error=None,
                 validated_at=None,
             )
+        if connection.status == ConnectionStatus.VALID and {
+            "scope_kind",
+            "scope_domain_provider_resource_id",
+            "scope_project_provider_resource_id",
+        }.intersection(changes):
+            from cps.contracts.errors import InvalidRequestError
+
+            raise InvalidRequestError("validated connection scope is immutable")
         try:
             updated = await self._repository.update_connection(
                 connection_id, expected_version=body.expected_version, values=changes

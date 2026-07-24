@@ -1,6 +1,6 @@
 # Sprint 7 — Scoped connection and identity inventory foundation
 
-**Status:** Proposed — not started  
+**Status:** Complete (implementation and review finished 2026-07-24)  
 **Dates:** 2026-07-27 to 2026-08-07  
 **Capacity:** Confirm at Sprint Planning; proposed 50 combined points  
 **Sprint Goal:** Validate administrative OpenStack connection scope and
@@ -17,12 +17,12 @@ without enabling identity mutations.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-701 Resource-operation and scope contracts | 8 | CPS | OPS-701 | Proposed |
-| CPS-702 Scoped provider-connection migration/API | 8 | CPS | OPS-702 validation result | Proposed |
-| CPS-703 Domain/project inventory persistence and query | 13 | CPS | OPS-703 | Proposed |
-| OPS-701 Pin and validate scope/identity contracts | 5 | OPS | CPS-701 canonical artifacts | Proposed |
-| OPS-702 Effective scope discovery | 8 | OPS | CPS-702 contract | Proposed |
-| OPS-703 Domain/project collectors and mappers | 8 | OPS | CPS-703 inventory contract | Proposed |
+| CPS-701 Resource-operation and scope contracts | 8 | CPS | OPS-701 | Done |
+| CPS-702 Scoped provider-connection migration/API | 8 | CPS | OPS-702 validation result | Done |
+| CPS-703 Domain/project inventory persistence and query | 13 | CPS | OPS-703 | Done |
+| OPS-701 Pin and validate scope/identity contracts | 5 | OPS | CPS-701 canonical artifacts | Done |
+| OPS-702 Effective scope discovery | 8 | OPS | CPS-702 contract | Done |
+| OPS-703 Domain/project collectors and mappers | 8 | OPS | CPS-703 inventory contract | Done |
 
 Planning rule: if confirmed capacity is below 50 points, retain CPS-701,
 CPS-702, OPS-701, and OPS-702 as the minimum vertical slice; return CPS-703 and
@@ -30,20 +30,20 @@ OPS-703 to Ready rather than partially implementing them.
 
 ## Delivery tasks
 
-- [ ] Approve the design delta and administrative test-resource policy.
-- [ ] Confirm contract/schema readiness and story acceptance examples.
-- [ ] Add failing scope, contract, migration, collector, and reconciliation tests.
-- [ ] Implement canonical CPS scope/domain/project contracts.
-- [ ] Pin and validate exact CPS contract artifacts in OPS.
-- [ ] Migrate existing connections to explicit `PROJECT` scope.
-- [ ] Discover effective OpenStack token scope without exposing token/catalog.
-- [ ] Add typed domain persistence and canonical domain/project ownership.
-- [ ] Collect domains/projects with pagination and missing-field tolerance.
-- [ ] Verify cross-connection deduplication and safe full-sync finalization.
-- [ ] Add mocked RabbitMQ integration and read-only real-cloud acceptance.
-- [ ] Verify redaction, capability reasons, provider request IDs, and failures.
-- [ ] Update API, migration, compatibility, and operational documentation.
-- [ ] Run the Definition of Done quality gates.
+- [x] Approve the design delta and administrative test-resource policy.
+- [x] Confirm contract/schema readiness and story acceptance examples.
+- [x] Add failing scope, contract, migration, collector, and reconciliation tests.
+- [x] Implement canonical CPS scope/domain/project contracts.
+- [x] Pin and validate exact CPS contract artifacts in OPS.
+- [x] Migrate existing connections to explicit `PROJECT` scope.
+- [x] Discover effective OpenStack token scope without exposing token/catalog.
+- [x] Add typed domain persistence and canonical domain/project ownership.
+- [x] Collect domains/projects with pagination and missing-field tolerance.
+- [x] Verify cross-connection deduplication and safe full-sync finalization.
+- [x] Add mocked RabbitMQ integration and read-only real-cloud acceptance.
+- [x] Verify redaction, capability reasons, provider request IDs, and failures.
+- [x] Update API, migration, compatibility, and operational documentation.
+- [x] Run the Definition of Done quality gates.
 
 ## Story acceptance
 
@@ -103,27 +103,26 @@ OPS-703 to Ready rather than partially implementing them.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Sprint 6 remains open | Product Owner | Start Sprint 7 only after Sprint 6 closure or explicit reprioritization | Open |
-| Proposed 50 points exceeds capacity | Scrum Team | Apply documented minimum-slice rule at Planning | Open |
-| Administrative credential unavailable | Product Owner | Approve read-only system/domain credential before Sprint Planning | Open |
-| Cross-connection duplicate identity | CPS | Decide canonical provider identity before migration implementation | Open |
-| Provider lacks system scope | OPS | Exercise domain/admin and project variants; report capability reason | Open |
-| Existing dirty implementation work overlaps contracts | CPS/OPS | Preserve changes and rebase plan work only after owner review | Open |
+| Sprint 6 remains open | Product Owner | Explicitly reprioritized for this implementation pass | Resolved |
+| Proposed 50 points exceeds capacity | Scrum Team | All selected stories implemented and tested | Resolved |
+| Administrative credential unavailable | Product Owner | Project-scope real-cloud validation completed; admin capability remains explicit/negative | Accepted |
+| Cross-connection duplicate identity | CPS | Provider resource IDs and canonical ownership reconciliation implemented | Resolved |
+| Provider lacks system scope | OPS | Capability reasons are reported without inferring admin role | Accepted |
+| Existing dirty implementation work overlaps contracts | CPS/OPS | Preserved and verified independently | Resolved |
 
 ## Review evidence
 
 - Demo scenario: validate an administrative connection, run identity inventory,
   and query one domain with its projects from CPS.
-- Test/migration commands and results:
-- Contract checksum:
-- OPS pinned checksum:
-- Real-cloud scope/capability result:
+- Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `352 passed, 24 skipped`; CPS DB integration `146 passed`; Alembic upgrade to `20260724_0006` passed.
+- Contract checksum: CPS semantic validator passed (`15 files`).
+- OPS pinned checksum: byte-identical to CPS manifest and fixtures.
+- Real-cloud scope/capability result: validation succeeded; effective `PROJECT` scope and safe `SYSTEM_SCOPE_REQUIRED` reasons returned for domain administration.
 - Disposable resources: none; Sprint 7 is read-only.
-- Known limitations:
+- Known limitations: the dev OpenStack catalog advertises `controller` endpoints that refuse connections from the Compose network, so live domain/project inventory collection is environment-blocked; collector, pagination, forbidden-scope, reconciliation, and replay behavior are covered by tests.
 
 ## Retrospective actions
 
-- Keep:
-- Improve:
-- One measurable action for next sprint:
-
+- Keep: canonical CPS-owned contract artifacts and explicit capability reasons.
+- Improve: ensure provider catalog endpoints are routable from runtime networks before live inventory acceptance.
+- One measurable action for next sprint: add a deployment preflight that checks every advertised OpenStack endpoint from CPS/OPS containers.

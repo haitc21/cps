@@ -51,7 +51,7 @@ services:
       CPS_ENVIRONMENT: development
       CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
-      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:-}
+      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "serve", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "127.0.0.1:${CPS_PUBLIC_PORT:-8000}:8000"
@@ -78,7 +78,7 @@ services:
       CPS_ENVIRONMENT: development
       CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
-      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:-}
+      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "serve", "--internal", "--host", "0.0.0.0", "--port", "8002"]
     ports:
       - "127.0.0.1:${CPS_INTERNAL_PORT:-8002}:8002"
@@ -105,7 +105,7 @@ services:
       CPS_ENVIRONMENT: development
       CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
-      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:-}
+      CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "worker"]
     depends_on:
       postgres:

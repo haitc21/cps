@@ -9,7 +9,7 @@ All published ports bind to `127.0.0.1` and are not exposed to the LAN.
 
 ## Start
 
-Optionally copy `.env.example` to `.env` and change the development passwords,
+Copy `.env.example` to `.env`, change the development passwords if needed, and
 then run:
 
 ```bash

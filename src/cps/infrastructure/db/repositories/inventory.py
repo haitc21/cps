@@ -15,6 +15,7 @@ from cps.contracts.messages.inventory import InventoryBatchPayload, InventoryCol
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.inventory import (
     Flavor,
+    IdentityDomain,
     Image,
     Instance,
     InstancePort,
@@ -27,8 +28,10 @@ from cps.infrastructure.db.models.inventory import (
     Volume,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
+from cps.infrastructure.db.models.provider_connections import ProviderConnection
 
 RESOURCE_MODELS: dict[str, Any] = {
+    "domain": IdentityDomain,
     "region": Region,
     "project": Project,
     "flavor": Flavor,
@@ -40,6 +43,7 @@ RESOURCE_MODELS: dict[str, Any] = {
     "volume": Volume,
 }
 RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}
+RESOURCE_ALIASES.update({"identity-domains": "domain", "identity_domain": "domain"})
 RESOURCE_ALIASES["indices"] = "instance"
 
 
@@ -388,6 +392,32 @@ class InventoryRepository:
         item: dict[str, Any],
     ) -> None:
         now = datetime.now(UTC)
+        # Identity resources are provider-global.  When an administrative
+        # resource is observed through another project-scoped connection,
+        # retain the first CPS row as the canonical owner instead of creating
+        # a second row keyed only by the observing connection.
+        if model in (IdentityDomain, Project):
+            current_provider = await self._session.scalar(
+                select(ProviderConnection.provider_id).where(
+                    ProviderConnection.id == provider_connection_id
+                )
+            )
+            if current_provider is not None:
+                canonical = await self._session.execute(
+                    select(model.provider_connection_id)
+                    .join(
+                        ProviderConnection,
+                        ProviderConnection.id == model.provider_connection_id,
+                    )
+                    .where(
+                        model.provider_resource_id == item["provider_resource_id"],
+                        ProviderConnection.provider_id == current_provider,
+                    )
+                    .limit(1)
+                )
+                canonical_connection_id = canonical.scalar_one_or_none()
+                if canonical_connection_id is not None:
+                    provider_connection_id = canonical_connection_id
         values: dict[str, Any] = {
             "id": new_uuid7(),
             "provider_connection_id": provider_connection_id,
@@ -400,6 +430,32 @@ class InventoryRepository:
             "deleted_at": None,
             "provider_attributes": copy.deepcopy(item.get("attributes", {})),
         }
+        # Promote identity ownership fields to typed columns while retaining
+        # provider_attributes for provider-specific data.
+        if model is Project:
+            values["domain_provider_resource_id"] = item.get(
+                "domain_provider_resource_id"
+            ) or item.get("attributes", {}).get("domain_provider_resource_id")
+            values["domain_name"] = item.get("domain_name") or item.get("attributes", {}).get(
+                "domain_name"
+            )
+            values["owner_domain_provider_resource_id"] = item.get(
+                "owner_domain_provider_resource_id"
+            ) or item.get("attributes", {}).get("owner_domain_provider_resource_id")
+            values["owner_project_provider_resource_id"] = item.get(
+                "owner_project_provider_resource_id"
+            ) or item.get("attributes", {}).get("owner_project_provider_resource_id")
+            values["enabled"] = (
+                item.get("enabled")
+                if "enabled" in item
+                else item.get("attributes", {}).get("enabled")
+            )
+        if model is IdentityDomain:
+            values["enabled"] = (
+                item.get("enabled")
+                if "enabled" in item
+                else item.get("attributes", {}).get("enabled")
+            )
         statement = pg_insert(model).values(**values)
         statement = statement.on_conflict_do_update(
             index_elements=["provider_connection_id", "provider_resource_id"],
@@ -414,4 +470,42 @@ class InventoryRepository:
                 "updated_at": now,
             },
         )
+        if model is Project:
+            statement = statement.on_conflict_do_update(
+                index_elements=["provider_connection_id", "provider_resource_id"],
+                set_={
+                    "name": statement.excluded.name,
+                    "provider_status": statement.excluded.provider_status,
+                    "last_seen_at": statement.excluded.last_seen_at,
+                    "last_sync_id": statement.excluded.last_sync_id,
+                    "lifecycle_state": statement.excluded.lifecycle_state,
+                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
+                    "provider_attributes": statement.excluded.provider_attributes,
+                    "domain_provider_resource_id": statement.excluded.domain_provider_resource_id,
+                    "domain_name": statement.excluded.domain_name,
+                    "owner_domain_provider_resource_id": (
+                        statement.excluded.owner_domain_provider_resource_id
+                    ),
+                    "owner_project_provider_resource_id": (
+                        statement.excluded.owner_project_provider_resource_id
+                    ),
+                    "enabled": statement.excluded.enabled,
+                    "updated_at": now,
+                },
+            )
+        elif model is IdentityDomain:
+            statement = statement.on_conflict_do_update(
+                index_elements=["provider_connection_id", "provider_resource_id"],
+                set_={
+                    "name": statement.excluded.name,
+                    "provider_status": statement.excluded.provider_status,
+                    "last_seen_at": statement.excluded.last_seen_at,
+                    "last_sync_id": statement.excluded.last_sync_id,
+                    "lifecycle_state": statement.excluded.lifecycle_state,
+                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
+                    "provider_attributes": statement.excluded.provider_attributes,
+                    "enabled": statement.excluded.enabled,
+                    "updated_at": now,
+                },
+            )
         await self._session.execute(statement)

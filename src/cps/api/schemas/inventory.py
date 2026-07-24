@@ -23,6 +23,11 @@ class InventoryResourceView(BaseModel):
     deleted_at: datetime | None
     last_sync_id: uuid.UUID | None
     provider_attributes: dict[str, Any]
+    domain_provider_resource_id: str | None = None
+    domain_name: str | None = None
+    owner_domain_provider_resource_id: str | None = None
+    owner_project_provider_resource_id: str | None = None
+    enabled: bool | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -36,6 +41,7 @@ class InventoryPage(BaseModel):
 class InventorySyncRequest(BaseModel):
     collections: list[str] = Field(
         default_factory=lambda: [
+            "domain",
             "region",
             "project",
             "flavor",

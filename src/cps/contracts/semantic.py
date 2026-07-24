@@ -13,6 +13,10 @@ from cps.contracts.errors import CommonError
 from cps.contracts.messages.delivery import DeliveryMetadata, assert_strict_wire_header_types
 from cps.contracts.messages.envelope import MessageEnvelope
 from cps.contracts.messages.inventory import InventoryBatchPayload
+from cps.contracts.messages.resource_operations import (
+    ResourceOperationRequest,
+    ResourceOperationResult,
+)
 from cps.contracts.validation import validate_validation_event
 
 _FORBIDDEN_SECRET_TOKENS = ("password", "token", "authorization", "user_data", "private_key")
@@ -22,6 +26,8 @@ _TRANSPORT_PREFIX = "fixtures/transport/"
 _ENVELOPE_SCHEMA = "jsonschema/message_envelope.schema.json"
 _ERROR_SCHEMA = "jsonschema/common_error.schema.json"
 _DELIVERY_SCHEMA = "jsonschema/delivery_metadata.schema.json"
+_RESOURCE_OPERATION_PREFIX = "fixtures/resource_operations/"
+_RESOURCE_OPERATION_SCHEMA = "jsonschema/resource_operation.schema.json"
 
 
 def _load_json_object(path: Path, *, label: str) -> tuple[object | None, str | None]:
@@ -167,12 +173,17 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
     has_transport_fixtures = any(
         label.startswith(_TRANSPORT_PREFIX) for label, _raw in parsed_fixtures
     )
+    has_resource_operation_fixtures = any(
+        label.startswith(_RESOURCE_OPERATION_PREFIX) for label, _raw in parsed_fixtures
+    )
     if has_envelope_fixtures and not has_envelope_schema:
         return len(fixture_paths), f"missing file: {_ENVELOPE_SCHEMA}"
     if has_error_fixtures and not has_error_schema:
         return len(fixture_paths), f"missing file: {_ERROR_SCHEMA}"
     if has_transport_fixtures and not has_delivery_schema:
         return len(fixture_paths), f"missing file: {_DELIVERY_SCHEMA}"
+    if has_resource_operation_fixtures and not (base / _RESOURCE_OPERATION_SCHEMA).is_file():
+        return len(fixture_paths), f"missing file: {_RESOURCE_OPERATION_SCHEMA}"
 
     envelope_validator: Draft202012Validator | None = None
     error_validator: Draft202012Validator | None = None
@@ -192,6 +203,14 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
         if isinstance(loaded, str):
             return len(fixture_paths), loaded
         delivery_validator = loaded
+    resource_operation_validator: Draft202012Validator | None = None
+    if has_resource_operation_fixtures:
+        loaded = _schema_validator(
+            base / _RESOURCE_OPERATION_SCHEMA, label=_RESOURCE_OPERATION_SCHEMA
+        )
+        if isinstance(loaded, str):
+            return len(fixture_paths), loaded
+        resource_operation_validator = loaded
 
     for label, raw in parsed_fixtures:
         secret_error = _scan_fixture_secrets(base / label, label=label)
@@ -210,6 +229,17 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
             if envelope_validator is None:
                 return len(fixture_paths), f"missing file: {_ENVELOPE_SCHEMA}"
             semantic_error = _validate_envelope_fixture(label, raw, envelope_validator)
+        elif label.startswith(_RESOURCE_OPERATION_PREFIX):
+            assert resource_operation_validator is not None
+            try:
+                contract = (
+                    ResourceOperationRequest if "request" in label else ResourceOperationResult
+                )
+                contract.model_validate(raw)
+                resource_operation_validator.validate(raw)
+                semantic_error = None
+            except (PydanticValidationError, ValidationError):
+                semantic_error = f"fixture failed resource operation validation: {label}"
         elif has_envelope_schema or has_error_schema or has_delivery_schema:
             semantic_error = f"unsupported fixture path: {label}"
         else:

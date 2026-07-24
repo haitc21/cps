@@ -17,6 +17,14 @@ class ConnectionStatus(str, enum.Enum):
     DISABLED = "DISABLED"
 
 
+class ConnectionScopeKind(str, enum.Enum):
+    """OpenStack credential scope used by a provider connection."""
+
+    SYSTEM = "SYSTEM"
+    DOMAIN = "DOMAIN"
+    PROJECT = "PROJECT"
+
+
 class OperationState(str, enum.Enum):
     ACCEPTED = "ACCEPTED"
     QUEUED = "QUEUED"

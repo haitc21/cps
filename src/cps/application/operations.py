@@ -306,6 +306,8 @@ class OperationApplicationService:
             ("image", request.image_provider_resource_id),
         ]
         references.extend(("network", value) for value in request.network_provider_resource_ids)
+        if request.floating_network_provider_resource_id:
+            references.append(("network", request.floating_network_provider_resource_id))
         references.extend(("port", value) for value in request.port_provider_resource_ids)
         references.extend(
             ("security_group", value) for value in request.security_group_provider_resource_ids
