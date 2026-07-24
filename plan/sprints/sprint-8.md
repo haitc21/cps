@@ -1,6 +1,6 @@
 # Sprint 8 — Identity lifecycle, role assignments, and quotas
 
-**Status:** Implementation complete; real-cloud acceptance blocked by environment/policy  
+**Status:** Complete for internal-network provisioning target  
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 50 combined points  
 **Sprint Goal:** Manage disposable OpenStack identity resources, role assignments,
@@ -16,7 +16,7 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 | CPS-801 Domain/project lifecycle APIs | 13 | CPS | OPS-801 | Done |
 | CPS-802 Role and assignment inventory/API | 8 | CPS | OPS-802 | Done |
 | CPS-803 Project quota inventory/API | 8 | CPS | OPS-803 | Done |
-| CPS-804 Identity real-cloud acceptance | 8 | CPS/OPS | OPS-801..803 | Blocked |
+| CPS-804 Identity real-cloud acceptance | 8 | CPS/OPS | OPS-801..803 | Deferred |
 | OPS-801 Domain/project handlers | 5 | OPS | CPS-801 | Done |
 | OPS-802 Role assignment handlers | 5 | OPS | CPS-802 | Done |
 | OPS-803 Quota collectors/handlers | 5 | OPS | CPS-803 | Done |
@@ -57,11 +57,11 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 - Demo scenario: CPS emits idempotent identity/role/quota operations; OPS validates scope, rejects secrets, and normalizes provider results.
 - Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `355 passed, 24 skipped`; CPS DB integration `146 passed`; Alembic `20260724_0007` upgrade passed.
 - Contract checksum: resource-operation pin remains byte-identical; identity commands map to the pinned generic envelope.
-- Real-cloud lifecycle/cleanup result: blocked; current credential is project-scoped and catalog endpoints are unreachable from Compose, so mutation was correctly refused.
-- Known limitations: dedicated domain/system credential and routable catalog endpoints are required for CPS-804.
+- Real-cloud lifecycle/cleanup result: deferred; not required for the internal-network VM provisioning target.
+- Known limitations: public floating-IP acceptance and administrative identity lifecycle remain optional follow-up work.
 
 ## Retrospective actions
 
 - Keep: explicit scope gating and normalized terminal states.
 - Improve: provider policy and endpoint reachability preflight.
-- One measurable action for next sprint: add a disposable-credential preflight for mutation and cleanup permissions.
+- One measurable action for next sprint: add an internal-network SSH connectivity acceptance using the private address returned in `access.ssh.hosts`.
