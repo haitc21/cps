@@ -219,3 +219,198 @@ Priorities use Must/Should/Could. Sprint allocation is the initial forecast and 
 - OpenStack notification-driven refresh.
 - Cursor pagination migration if offset performance becomes insufficient.
 - Shared contracts package after a second provider justifies it.
+
+## Epic CPS-E7 — Scoped connections and identity inventory
+
+### CPS-701 — Canonical resource-operation and scope contracts
+
+- **Sprint/Priority/Points:** 7 / Must / 8
+- **Depends on:** CPS-101, approved resource-control-plane design delta
+- **Coordinates with:** OPS-701
+- **Acceptance:** canonical scope, owner reference, normalized resource result,
+  replay, tombstone, and error fixtures validate; checksums are deterministic;
+  existing VM contracts remain compatible; no secret or SDK object is
+  serializable.
+
+### CPS-702 — Scoped provider-connection migration and API
+
+- **Sprint/Priority/Points:** 7 / Must / 8
+- **Depends on:** CPS-203, CPS-701
+- **Coordinates with:** OPS-702
+- **Acceptance:** `SYSTEM`/`DOMAIN`/`PROJECT` scopes are explicit; existing
+  connections migrate to `PROJECT`; clean/upgrade/downgrade migration gates
+  pass; validated scope becomes immutable; public responses remain secret-free.
+
+### CPS-703 — Domain/project inventory persistence and query
+
+- **Sprint/Priority/Points:** 7 / Must / 13
+- **Depends on:** CPS-301..305, CPS-701
+- **Coordinates with:** OPS-703
+- **Acceptance:** domain and owner-aware project inventory reconcile without
+  name-based merging or cross-connection duplication; partial sync never
+  deletes; list/get filters and targeted tombstones work.
+
+## Epic CPS-E8 — Identity lifecycle and quotas
+
+### CPS-801 — Domain/project lifecycle APIs
+
+- **Sprint/Priority/Points:** 8 / Must / 13
+- **Depends on:** CPS-701..703
+- **Coordinates with:** OPS-801
+- **Acceptance:** create/update/disable/delete return durable idempotent
+  operations; connection scope and owner domain validate; results update
+  inventory; dependency conflict and already-absent behavior are deterministic.
+
+### CPS-802 — Role and assignment inventory/API
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** CPS-703
+- **Coordinates with:** OPS-802
+- **Acceptance:** role and assignment identities are typed; ensure/revoke is
+  idempotent across system/domain/project scope; principal secrets are never
+  stored.
+
+### CPS-803 — Project quota inventory/API
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** CPS-703
+- **Coordinates with:** OPS-803
+- **Acceptance:** compute/network/block-storage quota reads and updates
+  normalize unlimited semantics and partial-service outcomes; replay reads
+  current provider state.
+
+### CPS-804 — Identity real-cloud acceptance
+
+- **Sprint/Priority/Points:** 8 / Must / 8
+- **Depends on:** CPS-801..803 and OPS-801..803
+- **Acceptance:** disposable domain/project lifecycle, assignment, quota,
+  restart/redelivery, and verified cleanup pass through CPS/OPS.
+
+## Epic CPS-E9 — Network resource control
+
+### CPS-901 — Network inventory expansion
+
+- **Sprint/Priority/Points:** 9 / Must / 13
+- **Depends on:** CPS-301..305
+- **Coordinates with:** OPS-901
+- **Acceptance:** router/interface/security-group/rule/floating-IP typed
+  inventory and ownership relationships reconcile safely.
+
+### CPS-902 — Network/subnet lifecycle
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** CPS-701, CPS-901
+- **Coordinates with:** OPS-902
+- **Acceptance:** validated create/update/delete operations are idempotent;
+  external/shared flags require administrative scope; dependency conflicts are
+  explicit.
+
+### CPS-903 — Router/interface lifecycle
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** CPS-902
+- **Coordinates with:** OPS-903
+- **Acceptance:** router CRUD and interface ensure/remove preserve topology,
+  validate ownership, and recover from partial relationship mutation.
+
+### CPS-904 — Port and security lifecycle
+
+- **Sprint/Priority/Points:** 9 / Must / 13
+- **Depends on:** CPS-901..902
+- **Coordinates with:** OPS-904
+- **Acceptance:** port/security-group/rule lifecycle validates fixed IP,
+  project scope, protocols, and ranges; replay and dependency errors converge.
+
+### CPS-905 — Floating-IP lifecycle
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** CPS-902..904
+- **Coordinates with:** OPS-905
+- **Acceptance:** allocate/associate/disassociate/release validates external
+  network, project, port, and fixed IP; relationship operations are replay-safe.
+
+### CPS-906 — Network topology acceptance
+
+- **Sprint/Priority/Points:** 9 / Must / 8
+- **Depends on:** CPS-901..905 and paired OPS stories
+- **Acceptance:** a disposable network topology is created, reconciled, used,
+  removed, and verified clean without manual provider mutation.
+
+## Epic CPS-E10 — Storage, image, and compute catalog control
+
+### CPS-1001 — Volume type and snapshot inventory
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Coordinates with:** OPS-1001
+- **Acceptance:** volume types/snapshots and owner relationships support full
+  reconciliation, query, targeted refresh, and tombstones.
+
+### CPS-1002 — Volume lifecycle and attachment
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** CPS-1001, CPS-403
+- **Coordinates with:** OPS-1002
+- **Acceptance:** create/update/extend/attach/detach/delete is state-aware,
+  replay-safe, and preserves Nova root-volume deletion ownership.
+
+### CPS-1003 — Snapshot lifecycle
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** CPS-1001..1002
+- **Coordinates with:** OPS-1003
+- **Acceptance:** create/update/delete has bounded terminal handling,
+  dependency checks, normalized result, and tombstone behavior.
+
+### CPS-1004 — Image metadata/import/access lifecycle
+
+- **Sprint/Priority/Points:** 10 / Must / 13
+- **Depends on:** CPS-701
+- **Coordinates with:** OPS-1004
+- **Acceptance:** metadata/import/update/member/delete operations are durable;
+  image bytes and signed credentials never enter RabbitMQ; upload remains a
+  separately approved data-plane concern.
+
+### CPS-1005 — Availability-zone/flavor inventory and lifecycle
+
+- **Sprint/Priority/Points:** 10 / Should / 13
+- **Depends on:** CPS-701
+- **Coordinates with:** OPS-1005
+- **Acceptance:** AZ, flavor extra specs, and project access are typed; flavor
+  administrative mutations are scope/capability gated.
+
+### CPS-1006 — Storage/catalog acceptance
+
+- **Sprint/Priority/Points:** 10 / Must / 8
+- **Depends on:** CPS-1001..1005 and paired OPS stories
+- **Acceptance:** standalone storage and catalog workflows pass replay,
+  convergence, cleanup, and compatibility gates.
+
+## Epic CPS-E11 — Expanded control-plane release
+
+### CPS-1101 — Cross-resource drift convergence
+
+- **Sprint/Priority/Points:** 11 / Must / 13
+- **Depends on:** CPS-E8..E10
+- **Acceptance:** identity, network, storage, and catalog relationship drift
+  converges without unsafe deletion.
+
+### CPS-1102 — Restart/redelivery/partial-success acceptance
+
+- **Sprint/Priority/Points:** 11 / Must / 13
+- **Depends on:** CPS-1101 and paired OPS recovery stories
+- **Acceptance:** failure matrix covers duplicate, timeout, restart, late
+  result, partial relationship mutation, and DLQ replay.
+
+### CPS-1103 — Migration, rollback, and operational controls
+
+- **Sprint/Priority/Points:** 11 / Must / 8
+- **Depends on:** all new migrations
+- **Acceptance:** clean and current-release upgrade/downgrade, runbooks,
+  metrics, cleanup, and release rollback pass.
+
+### CPS-1104 — Real-cloud release acceptance
+
+- **Sprint/Priority/Points:** 11 / Must / 13
+- **Depends on:** CPS-1101..1103 and OPS compatibility report
+- **Acceptance:** approved end-to-end matrix passes on the target OpenStack
+  cloud with provider versions, limitations, and verified cleanup recorded.
