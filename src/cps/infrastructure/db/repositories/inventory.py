@@ -15,6 +15,7 @@ from cps.contracts.messages.inventory import InventoryBatchPayload, InventoryCol
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.inventory import (
     Flavor,
+    FloatingIP,
     IdentityDomain,
     Image,
     Instance,
@@ -26,6 +27,9 @@ from cps.infrastructure.db.models.inventory import (
     Quota,
     Region,
     RoleAssignment,
+    Router,
+    SecurityGroup,
+    SecurityGroupRule,
     Subnet,
     Volume,
 )
@@ -44,6 +48,10 @@ RESOURCE_MODELS: dict[str, Any] = {
     "network": Network,
     "subnet": Subnet,
     "port": Port,
+    "router": Router,
+    "security-group": SecurityGroup,
+    "security-group-rule": SecurityGroupRule,
+    "floating-ip": FloatingIP,
     "volume": Volume,
 }
 RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}

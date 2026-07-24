@@ -198,6 +198,63 @@ class Port(Base, InventoryResourceMixin):
     )
 
 
+class Router(Base, InventoryResourceMixin):
+    __tablename__ = "routers"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    admin_state_up: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    external_gateway_info: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+    routes: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="[]")
+
+
+class RouterInterface(Base):
+    __tablename__ = "router_interfaces"
+    router_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("routers.id", ondelete="CASCADE"), primary_key=True
+    )
+    subnet_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("subnets.id", ondelete="RESTRICT"), primary_key=True
+    )
+    provider_router_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_subnet_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    port_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class SecurityGroup(Base, InventoryResourceMixin):
+    __tablename__ = "security_groups"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    stateful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+
+class SecurityGroupRule(Base, InventoryResourceMixin):
+    __tablename__ = "security_group_rules"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    security_group_provider_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    ethertype: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    protocol: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    port_range_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    port_range_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    remote_ip_prefix: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    remote_group_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+
+class FloatingIP(Base, InventoryResourceMixin):
+    __tablename__ = "floating_ips"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    floating_network_provider_resource_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+    floating_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fixed_ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    port_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    router_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
 class Volume(Base, InventoryResourceMixin):
     __tablename__ = "volumes"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)

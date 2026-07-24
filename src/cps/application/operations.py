@@ -26,9 +26,14 @@ from cps.contracts.messages.identity import (
     RoleAssignmentRequest,
 )
 from cps.contracts.messages.instance import InstanceAction, InstanceCreateRequest
+from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLOATING_IP_ALLOCATE,
+    FLOATING_IP_ASSOCIATE,
+    FLOATING_IP_DISASSOCIATE,
+    FLOATING_IP_RELEASE,
     IDENTITY_DOMAIN_CREATE,
     IDENTITY_DOMAIN_DELETE,
     IDENTITY_DOMAIN_UPDATE,
@@ -47,6 +52,25 @@ from cps.contracts.messages.types import (
     INSTANCE_STOP,
     INVENTORY_COLLECT,
     INVENTORY_REFRESH,
+    NETWORK_CREATE,
+    NETWORK_DELETE,
+    NETWORK_UPDATE,
+    PORT_CREATE,
+    PORT_DELETE,
+    PORT_UPDATE,
+    ROUTER_CREATE,
+    ROUTER_DELETE,
+    ROUTER_INTERFACE_ENSURE,
+    ROUTER_INTERFACE_REMOVE,
+    ROUTER_UPDATE,
+    SECURITY_GROUP_CREATE,
+    SECURITY_GROUP_DELETE,
+    SECURITY_GROUP_RULE_CREATE,
+    SECURITY_GROUP_RULE_DELETE,
+    SECURITY_GROUP_UPDATE,
+    SUBNET_CREATE,
+    SUBNET_DELETE,
+    SUBNET_UPDATE,
 )
 from cps.domain.messaging.outbox import OutboxDraft
 from cps.domain.operations.create import create_operation_idempotent
@@ -633,6 +657,114 @@ class OperationApplicationService:
                 message_id=message_id,
             )
         metrics.increment("cps_operations_created_total")
+        return to_view(operation)
+
+    async def create_network_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: NetworkOperationRequest,
+    ) -> OperationView:
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        table = {
+            ("network", "create"): NETWORK_CREATE,
+            ("network", "update"): NETWORK_UPDATE,
+            ("network", "delete"): NETWORK_DELETE,
+            ("subnet", "create"): SUBNET_CREATE,
+            ("subnet", "update"): SUBNET_UPDATE,
+            ("subnet", "delete"): SUBNET_DELETE,
+            ("router", "create"): ROUTER_CREATE,
+            ("router", "update"): ROUTER_UPDATE,
+            ("router", "delete"): ROUTER_DELETE,
+            ("router-interface", "ensure"): ROUTER_INTERFACE_ENSURE,
+            ("router-interface", "remove"): ROUTER_INTERFACE_REMOVE,
+            ("port", "create"): PORT_CREATE,
+            ("port", "update"): PORT_UPDATE,
+            ("port", "delete"): PORT_DELETE,
+            ("security-group", "create"): SECURITY_GROUP_CREATE,
+            ("security-group", "update"): SECURITY_GROUP_UPDATE,
+            ("security-group", "delete"): SECURITY_GROUP_DELETE,
+            ("security-group-rule", "create"): SECURITY_GROUP_RULE_CREATE,
+            ("security-group-rule", "delete"): SECURITY_GROUP_RULE_DELETE,
+            ("floating-ip", "allocate"): FLOATING_IP_ALLOCATE,
+            ("floating-ip", "associate"): FLOATING_IP_ASSOCIATE,
+            ("floating-ip", "disassociate"): FLOATING_IP_DISASSOCIATE,
+            ("floating-ip", "release"): FLOATING_IP_RELEASE,
+        }
+        message_type = table.get((request.resource_type.value, request.operation.value))
+        if message_type is None:
+            raise ValueError("unsupported network resource/action")
+        parameters = dict(request.parameters)
+        relationship_parameters = {
+            "network_id": request.network_provider_resource_id,
+            "subnet_id": request.subnet_provider_resource_id,
+            "project_id": request.project_provider_resource_id,
+            "port_id": request.port_provider_resource_id,
+        }
+        parameters.update({key: value for key, value in relationship_parameters.items() if value})
+        payload = {
+            "operation_id": str(request.operation_id),
+            "resource_type": request.resource_type.value,
+            "operation": request.operation.value,
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "provider_resource_id": request.provider_resource_id,
+            "parameters": parameters,
+        }
+        operation_id = request.operation_id
+        message_id = _uuid7()
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": datetime.now(UTC),
+                "correlation_id": correlation_id,
+                "causation_id": None,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "credential_reference": connection.credential_id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=datetime.now(UTC),
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
         return to_view(operation)
 
     async def get(self, operation_id: uuid.UUID) -> OperationView:

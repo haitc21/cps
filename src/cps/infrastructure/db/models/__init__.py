@@ -6,6 +6,7 @@ from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
     Flavor,
+    FloatingIP,
     IdentityDomain,
     Image,
     Instance,
@@ -17,6 +18,10 @@ from cps.infrastructure.db.models.inventory import (
     Quota,
     Region,
     RoleAssignment,
+    Router,
+    RouterInterface,
+    SecurityGroup,
+    SecurityGroupRule,
     Subnet,
     Volume,
 )
@@ -39,6 +44,11 @@ __all__ = [
     "Image",
     "Instance",
     "Network",
+    "Router",
+    "RouterInterface",
+    "SecurityGroup",
+    "SecurityGroupRule",
+    "FloatingIP",
     "Subnet",
     "Port",
     "Volume",

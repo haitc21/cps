@@ -39,6 +39,32 @@ class InventoryResourceView(BaseModel):
     limit_value: int | None = None
     in_use: int | None = None
     unlimited: bool | None = None
+    admin_state_up: bool | None = None
+    shared: bool | None = None
+    external: bool | None = None
+    mtu: int | None = None
+    network_provider_resource_id: str | None = None
+    cidr: str | None = None
+    ip_version: int | None = None
+    gateway_ip: str | None = None
+    enable_dhcp: bool | None = None
+    external_gateway_info: dict[str, Any] | None = None
+    routes: list[Any] | None = None
+    stateful: bool | None = None
+    security_group_provider_resource_id: str | None = None
+    direction: str | None = None
+    ethertype: str | None = None
+    protocol: str | None = None
+    port_range_min: int | None = None
+    port_range_max: int | None = None
+    remote_ip_prefix: str | None = None
+    remote_group_provider_resource_id: str | None = None
+    floating_network_provider_resource_id: str | None = None
+    floating_ip: str | None = None
+    fixed_ip: str | None = None
+    port_provider_resource_id: str | None = None
+    router_provider_resource_id: str | None = None
+    status: str | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -60,6 +86,10 @@ class InventorySyncRequest(BaseModel):
             "network",
             "subnet",
             "port",
+            "router",
+            "security-group",
+            "security-group-rule",
+            "floating-ip",
             "volume",
             "instance",
             "role-assignment",
