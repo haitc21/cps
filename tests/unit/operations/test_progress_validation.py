@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from cps.contracts.validation import ValidationProgress
 from cps.domain.operations.errors import InvalidProgressValueError
 from cps.domain.operations.progress import validate_progress_percent
 
@@ -34,3 +35,18 @@ def test_validate_progress_percent_rejects_string_and_float() -> None:
         validate_progress_percent("50")  # type: ignore[arg-type]
     with pytest.raises(InvalidProgressValueError):
         validate_progress_percent(50.5)  # type: ignore[arg-type]
+
+
+def test_validation_progress_retains_provider_identity_for_convergence() -> None:
+    progress = ValidationProgress.model_validate(
+        {
+            "progress": 20,
+            "state": "RUNNING",
+            "message": "instance create started",
+            "provider_resource_id": "server-1",
+            "provider_status": "BUILD",
+        }
+    )
+
+    assert progress.provider_resource_id == "server-1"
+    assert progress.provider_status == "BUILD"

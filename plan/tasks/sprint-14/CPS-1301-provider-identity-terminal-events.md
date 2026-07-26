@@ -1,5 +1,7 @@
 # CPS-1301 — Persist provider identity and terminal events
 
+**Status:** Completed — verified by CPS tests and live convergence acceptance.
+
 ## Goal
 
 Persist the Nova server identity before optional OPS enrichment and consume

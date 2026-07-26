@@ -358,6 +358,7 @@ class OperationRepository:
         event_type: str,
         details: SafeEventDetails,
         message_id: uuid.UUID | None,
+        provider_request_id: str | None = None,
     ) -> Operation:
         sequence = await self._next_sequence(operation.id)
         event = OperationEvent(
@@ -371,12 +372,13 @@ class OperationRepository:
             details=materialize_event_details(details),
         )
         self._session.add(event)
+        values: dict[str, Any] = {"progress_percent": progress_percent}
+        if provider_request_id is not None:
+            values["provider_request_id"] = provider_request_id
         await self._update_operation(
             operation_id=operation.id,
             expected_version=expected_version,
-            values={
-                "progress_percent": progress_percent,
-            },
+            values=values,
         )
         await self._flush_or_raise()
         refreshed = await self.get_operation(operation.id)

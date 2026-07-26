@@ -1,5 +1,7 @@
 # CPS-1302 — Reconcile stale VM-create operations
 
+**Status:** Completed — bounded replay and terminal convergence verified in the joint flow.
+
 ## Goal
 
 Ensure every stale VM-create operation reaches a deterministic terminal state

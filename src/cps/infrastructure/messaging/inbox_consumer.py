@@ -300,7 +300,17 @@ class EventInboxConsumer:
 
                 return message_id, completed
 
-            except Exception:
+            except Exception as exc:
+                logger.warning(
+                    "inbox handler failed; scheduling event retry",
+                    extra={
+                        "error_type": type(exc).__name__,
+                        "error_message": str(exc),
+                        "operation_id": str(envelope.operation_id),
+                        "message_type": envelope.message_type,
+                    },
+                    exc_info=True,
+                )
                 completed = await self._retry_or_reject(
                     message,
                     actions,

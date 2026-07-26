@@ -75,6 +75,7 @@ class OperationService:
         progress_percent: int,
         details: dict[str, Any] | None = None,
         message_id: uuid.UUID | None = None,
+        provider_request_id: str | None = None,
     ) -> Operation:
         validated_progress = validate_progress_percent(progress_percent)
         safe_details = validate_event_details(details)
@@ -96,4 +97,5 @@ class OperationService:
             event_type=EVENT_TYPE_PROGRESS,
             details=safe_details,
             message_id=message_id,
+            provider_request_id=provider_request_id,
         )

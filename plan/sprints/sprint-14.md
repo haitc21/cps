@@ -1,6 +1,6 @@
 # Sprint 14 — VM create terminal convergence and recovery
 
-**Status:** Ready for implementation  
+**Status:** Completed — implementation, regression gates, and live OpenStack acceptance verified  
 **Dates:** 2026-10-03 to 2026-10-16  
 **Capacity:** 13 CPS points  
 **Sprint Goal:** Every CPS VM-create operation reaches one deterministic terminal
@@ -14,15 +14,15 @@ TMS, LMS, and BMS are out of scope.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1301 Persist early provider identity and terminal events | 5 | CPS | OPS-1301, OPS-1303 | Ready |
-| CPS-1302 Reconcile stale VM-create operations | 8 | CPS | OPS-1304 | Ready |
+| CPS-1301 Persist early provider identity and terminal events | 5 | CPS | OPS-1301, OPS-1303 | Completed |
+| CPS-1302 Reconcile stale VM-create operations | 8 | CPS | OPS-1304 | Completed |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1301](../tasks/sprint-14/CPS-1301-provider-identity-terminal-events.md) | Persist Nova server identity from progress and consume terminal events idempotently | OPS-1301, OPS-1303 | Ready |
-| [CPS-1302](../tasks/sprint-14/CPS-1302-stale-operation-reconciliation.md) | Detect and reconcile stale VM-create operations through OPS | CPS-1301, OPS-1304 | Ready |
+| [CPS-1301](../tasks/sprint-14/CPS-1301-provider-identity-terminal-events.md) | Persist Nova server identity from progress and consume terminal events idempotently | OPS-1301, OPS-1303 | Completed |
+| [CPS-1302](../tasks/sprint-14/CPS-1302-stale-operation-reconciliation.md) | Detect and reconcile stale VM-create operations through OPS | CPS-1301, OPS-1304 | Completed |
 
 ## Execution sequence
 
@@ -64,7 +64,7 @@ TMS, LMS, and BMS are out of scope.
 - Progress persistence and duplicate-event tests:
 - Stale-operation scheduler/reconciler tests:
 - OPS restart and terminal publish recovery:
-- Real OpenStack VM-create acceptance:
+- Real OpenStack VM-create acceptance: operation `019f9f72-8106-7404-83f7-a3f047cb4dd3` converged to `SUCCEEDED`; final SSH flow created an ACTIVE VM and was verified from the host.
 - Verification that BMS/TMS/LMS have no diff:
 
 ## Retrospective actions

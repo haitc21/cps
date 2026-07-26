@@ -546,30 +546,19 @@ class InventoryRepository:
                 unlimited=unlimited,
             )
         statement = pg_insert(model).values(**values)
-        statement = statement.on_conflict_do_update(
-            index_elements=["provider_connection_id", "provider_resource_id"],
-            set_={
-                "name": statement.excluded.name,
-                "provider_status": statement.excluded.provider_status,
-                "last_seen_at": statement.excluded.last_seen_at,
-                "last_sync_id": statement.excluded.last_sync_id,
-                "lifecycle_state": statement.excluded.lifecycle_state,
-                "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
-                "provider_attributes": statement.excluded.provider_attributes,
-                "updated_at": now,
-            },
-        )
+        conflict_set: dict[str, Any] = {
+            "name": statement.excluded.name,
+            "provider_status": statement.excluded.provider_status,
+            "last_seen_at": statement.excluded.last_seen_at,
+            "last_sync_id": statement.excluded.last_sync_id,
+            "lifecycle_state": statement.excluded.lifecycle_state,
+            "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
+            "provider_attributes": statement.excluded.provider_attributes,
+            "updated_at": now,
+        }
         if model is Project:
-            statement = statement.on_conflict_do_update(
-                index_elements=["provider_connection_id", "provider_resource_id"],
-                set_={
-                    "name": statement.excluded.name,
-                    "provider_status": statement.excluded.provider_status,
-                    "last_seen_at": statement.excluded.last_seen_at,
-                    "last_sync_id": statement.excluded.last_sync_id,
-                    "lifecycle_state": statement.excluded.lifecycle_state,
-                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
-                    "provider_attributes": statement.excluded.provider_attributes,
+            conflict_set.update(
+                {
                     "domain_provider_resource_id": statement.excluded.domain_provider_resource_id,
                     "domain_name": statement.excluded.domain_name,
                     "owner_domain_provider_resource_id": (
@@ -583,43 +572,20 @@ class InventoryRepository:
                     "org_id": statement.excluded.org_id,
                     "workspace_id": statement.excluded.workspace_id,
                     "ownership_state": statement.excluded.ownership_state,
-                    "updated_at": now,
-                },
+                }
             )
         elif hasattr(model, "project_id") and model is not Quota:
-            statement = statement.on_conflict_do_update(
-                index_elements=["provider_connection_id", "provider_resource_id"],
-                set_={
-                    "name": statement.excluded.name,
-                    "provider_status": statement.excluded.provider_status,
-                    "last_seen_at": statement.excluded.last_seen_at,
-                    "last_sync_id": statement.excluded.last_sync_id,
-                    "lifecycle_state": statement.excluded.lifecycle_state,
-                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
-                    "provider_attributes": statement.excluded.provider_attributes,
+            conflict_set.update(
+                {
                     "project_id": sa.func.coalesce(statement.excluded.project_id, model.project_id),
                     "project_provider_resource_id": sa.func.coalesce(
                         statement.excluded.project_provider_resource_id,
                         model.project_provider_resource_id,
                     ),
-                    "updated_at": now,
-                },
+                }
             )
         elif model is IdentityDomain:
-            statement = statement.on_conflict_do_update(
-                index_elements=["provider_connection_id", "provider_resource_id"],
-                set_={
-                    "name": statement.excluded.name,
-                    "provider_status": statement.excluded.provider_status,
-                    "last_seen_at": statement.excluded.last_seen_at,
-                    "last_sync_id": statement.excluded.last_sync_id,
-                    "lifecycle_state": statement.excluded.lifecycle_state,
-                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
-                    "provider_attributes": statement.excluded.provider_attributes,
-                    "enabled": statement.excluded.enabled,
-                    "updated_at": now,
-                },
-            )
+            conflict_set["enabled"] = statement.excluded.enabled
         elif model in (RoleAssignment, Quota):
             # Keep all typed fields synchronized while preserving the generic
             # provider attributes used by older consumers.
@@ -630,8 +596,9 @@ class InventoryRepository:
                 and c.name not in {"id", "provider_connection_id", "provider_resource_id"}
             }
             typed.update({"updated_at": now})
-            statement = statement.on_conflict_do_update(
-                index_elements=["provider_connection_id", "provider_resource_id"],
-                set_=typed,
-            )
+            conflict_set = typed
+        statement = statement.on_conflict_do_update(
+            index_elements=["provider_connection_id", "provider_resource_id"],
+            set_=conflict_set,
+        )
         await self._session.execute(statement)

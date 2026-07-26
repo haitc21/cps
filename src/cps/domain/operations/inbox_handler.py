@@ -137,6 +137,8 @@ class OperationInboxHandler:
             {
                 "progress": progress,
                 "message": envelope.payload.get("message"),
+                "provider_resource_id": progress_model.provider_resource_id,
+                "provider_status": progress_model.provider_status,
             }
         )
         await self._service.record_progress(
@@ -145,6 +147,7 @@ class OperationInboxHandler:
             progress_percent=progress,
             details=details.to_dict(),
             message_id=message_id,
+            provider_request_id=progress_model.provider_resource_id,
         )
 
     async def _handle_completed(

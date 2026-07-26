@@ -124,6 +124,8 @@ class ValidationProgress(BaseModel):
     progress: int = Field(ge=0, le=100)
     state: str = Field(pattern="^(RUNNING|WAITING_PROVIDER)$")
     message: str = Field(min_length=1, max_length=256)
+    provider_resource_id: str | None = Field(default=None, max_length=255)
+    provider_status: str | None = Field(default=None, max_length=64)
 
 
 class ValidationCompleted(BaseModel):
