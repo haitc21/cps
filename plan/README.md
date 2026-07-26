@@ -80,6 +80,8 @@ selects ready stories.
 - Retrospective: record one measurable process improvement for the next sprint.
 - Product Backlog: `plan/product-backlog.md`.
 - Sprint Backlog: created at sprint planning as `plan/sprints/sprint-<n>.md` from selected story IDs.
+- Task Backlog: implementation-ready task packets live under
+  `plan/tasks/sprint-<n>/` and are linked from the sprint backlog.
 - Increment evidence: commands, test reports, API examples, migration result, and relevant screenshots/log excerpts without secrets.
 
 ## Release gates

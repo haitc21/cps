@@ -22,41 +22,23 @@ TMS/LMS changes are forbidden. BMS is unaffected by this sprint.
 | CPS-1202 Canonical project ownership for tenant resources | 13 | CPS | OPS-1201 | Ready |
 | CPS-1203 Fail-closed resource authorization boundary | 13 | CPS | OPS-1202 | Ready |
 
-## Delivery tasks
+## Task backlog
 
-### CPS-1201 — Provider-owned encrypted credential
+| Task | Deliverable | Depends on | Status |
+|---|---|---|---|
+| [CPS-1201](../tasks/sprint-13/CPS-1201-provider-owned-credential.md) | Provider-owned encrypted credential, migration, API and contract cleanup | None | Ready |
+| [CPS-1202](../tasks/sprint-13/CPS-1202-canonical-project-ownership.md) | Canonical project plus project FK on tenant resources | CPS-1201, CPS-704 | Ready |
+| [CPS-1203](../tasks/sprint-13/CPS-1203-resource-authorization-boundary.md) | Ownership resolver and fail-closed TMS authorization port/stub | CPS-1202 | Ready with external dependency |
 
-- [ ] Add failing migration/model tests for provider-owned encrypted fields and removal of `provider_connections.credential_id`.
-- [ ] Add an ambiguity guard for a legacy provider referencing multiple credentials; verify the current empty database upgrade.
-- [ ] Move AES-GCM AAD from credential ID to provider ID without exposing plaintext during migration or rotation.
-- [ ] Refactor provider aggregate/repository/create/update/list/get paths.
-- [ ] Remove credential schemas, router, service, errors, repository methods, and public OpenAPI paths.
-- [ ] Resolve secrets using only `provider_connection_id`; invalidate all provider connections after credential rotation.
-- [ ] Remove `credential_reference` from operation and CPS/OPS fixtures.
-- [ ] Add redaction, key-unavailable, rotation, optimistic-lock, and multi-scope connection tests.
+## Execution sequence
 
-### CPS-1202 — Canonical project ownership
-
-- [ ] Add `provider_id`, `org_id`, `workspace_id`, and `ownership_state` to the canonical project model with provider-level uniqueness constraints.
-- [ ] Add `project_id` and `project_provider_resource_id` to every tenant-owned inventory table and the required indexes.
-- [ ] Normalize project identity from OpenStack payloads and explicitly define the project-scoped fallback.
-- [ ] Resolve project foreign keys during operation result persistence, full inventory, and targeted refresh.
-- [ ] Preserve organization/workspace ownership during inventory upsert and tombstone processing.
-- [ ] Project a `READY` identity binding into the canonical project row.
-- [ ] Add an ownership reconciler for provider resources observed before their project mapping.
-- [ ] Add tenant-safe list/get filters and cross-provider/cross-workspace tests.
-
-### CPS-1203 — Authorization boundary
-
-- [ ] Define permission constants, `AuthorizationDecision`, outbound port, and stable deny/unavailable errors.
-- [ ] Implement a strict HTTP TMS adapter without changing TMS and a deterministic configurable stub for local/CI tests.
-- [ ] Add a resource ownership resolver that loads resource plus canonical project with an indexed query.
-- [ ] Enforce authorization before reads, operation persistence, outbox writes, or provider mutation for every tenant resource API.
-- [ ] Authorize list once per workspace and bulk operations once per distinct workspace.
-- [ ] Store only safe decision metadata in `operations.actor_context`; never persist JWTs or role lists.
-- [ ] Reauthorize expired queued decisions before dispatch or fail closed.
-- [ ] Cover explicit deny, timeout, malformed response, unbound ownership, disabled workspace mapping, and cross-tenant non-disclosure.
-- [ ] Document production configuration as blocked until the external TMS endpoint exists; verify disabled/missing configuration fails closed.
+1. Complete CPS-1201 and publish canonical schema/fixture changes.
+2. Complete CPS-1202 with OPS owner normalization in parallel after contract
+   readiness.
+3. Complete CPS-1203 against the deterministic CPS stub.
+4. Integrate OPS-1202 safe decision context.
+5. Run joint contract, migration, cross-tenant, redaction, and Compose gates.
+6. Verify `bms`, `tms`, and `lms` contain no sprint diff.
 
 ## Acceptance
 
