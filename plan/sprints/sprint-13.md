@@ -29,6 +29,7 @@ TMS/LMS changes are forbidden. BMS is unaffected by this sprint.
 | [CPS-1201](../tasks/sprint-13/CPS-1201-provider-owned-credential.md) | Provider-owned encrypted credential, migration, API and contract cleanup | None | Ready |
 | [CPS-1202](../tasks/sprint-13/CPS-1202-canonical-project-ownership.md) | Canonical project plus project FK on tenant resources | CPS-1201, CPS-704 | Ready |
 | [CPS-1203](../tasks/sprint-13/CPS-1203-resource-authorization-boundary.md) | Ownership resolver and fail-closed TMS authorization port/stub | CPS-1202 | Ready with external dependency |
+| CPS-1204 | Automatically grant the provider creator's highest admin role on created domain/project scopes | CPS-1201, OPS-1203 | In progress |
 
 ## Execution sequence
 
