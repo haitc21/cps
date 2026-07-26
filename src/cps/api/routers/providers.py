@@ -9,10 +9,21 @@ from fastapi import APIRouter, Depends, Query, status
 from cps.api.dependencies import get_uow
 from cps.api.schemas.providers import ProviderCreate, ProviderPage, ProviderPatch, ProviderView
 from cps.application.providers import ProviderService
+from cps.contracts.errors import CredentialKeyUnavailableError
 from cps.infrastructure.db.models.enums import ProviderStatus
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 
 router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
+
+
+def _service(uow: SqlAlchemyUnitOfWork) -> ProviderService:
+    settings = uow.session.info["settings"]
+    cipher = uow.session.info["credential_cipher"]
+    return ProviderService(
+        uow.providers,
+        cipher=cipher,
+        active_key_version=settings.credential_active_key_version,
+    )
 
 
 @router.post("", response_model=ProviderView, status_code=status.HTTP_201_CREATED)
@@ -20,7 +31,9 @@ async def create_provider(
     body: ProviderCreate,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> ProviderView:
-    result = await ProviderService(uow.providers).create(body)
+    if uow.session.info["credential_cipher"] is None:
+        raise CredentialKeyUnavailableError
+    result = await _service(uow).create(body)
     await uow.commit()
     return result
 
@@ -36,7 +49,7 @@ async def list_providers(
     order: str = Query(default="asc", pattern="^(asc|desc)$"),  # noqa: B008
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> ProviderPage:
-    return await ProviderService(uow.providers).list(
+    return await _service(uow).list(
         offset=offset,
         limit=min(limit, 200),
         status=status_filter,
@@ -52,7 +65,7 @@ async def get_provider(
     provider_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> ProviderView:
-    return await ProviderService(uow.providers).get(provider_id)
+    return await _service(uow).get(provider_id)
 
 
 @router.patch("/{provider_id}", response_model=ProviderView)
@@ -61,6 +74,8 @@ async def update_provider(
     body: ProviderPatch,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> ProviderView:
-    result = await ProviderService(uow.providers).update(provider_id, body.expected_version, body)
+    if uow.session.info["credential_cipher"] is None:
+        raise CredentialKeyUnavailableError
+    result = await _service(uow).update(provider_id, body.expected_version, body)
     await uow.commit()
     return result

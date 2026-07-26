@@ -7,6 +7,16 @@ Current public model note: provider onboarding uses one `provider` aggregate onl
 earlier iterations and should not be treated as separate public business
 objects in new work.
 
+Restart baseline note: CPS and OPS operate independently. They do not integrate
+with TMS or BMS. A provider represents an entire OpenStack cluster and owns the
+encrypted highest-privilege admin credential plus cluster connection metadata
+(region, service endpoints, TLS options, and related fields). Organization and
+workspace bindings are deferred future scope only; see
+`docs/superpowers/specs/2026-07-24-openstack-cmp-org-workspace-binding-spec.md`.
+From Sprint 0 onward, planning and delivery prioritize standalone provider
+onboarding and provider-level validation before any tenant-binding or CMP
+orchestration work.
+
 ## Epic CPS-E0 — Engineering foundation
 
 ### CPS-001 — Bootstrap a reproducible Python service
@@ -126,7 +136,7 @@ future migration explicitly reopens them.
 
 ### CPS-207 — Single-endpoint provider onboarding
 
-- **Sprint/Priority/Points:** 10 / Must / 8
+- **Sprint/Priority/Points:** 6 / Must / 8
 - **Depends on:** CPS-201, CPS-202, CPS-203
 - **Tasks:** one public provider endpoint that accepts provider type, endpoint,
   and highest-privilege admin account in a single request; secret material
@@ -136,8 +146,8 @@ future migration explicitly reopens them.
 - **Acceptance:** CMP admin creates a provider through one endpoint only;
   provider scope is not selected by the user and is assumed to be privileged
   enough for identity/control-plane operations; public responses never expose
-  secret material; later binding APIs reuse the same provider aggregate and do
-  not require a separate credential or connection object.
+  secret material; deferred future binding APIs would reuse the same provider
+  aggregate and would not require a separate credential or connection object.
 
 ## Epic CPS-E3 — Inventory and reconciliation
 
@@ -237,7 +247,11 @@ future migration explicitly reopens them.
 ## Deferred backlog
 
 - Keycloak authentication/authorization and service-to-service identity.
+- Organization/workspace binding APIs and CMP tenant ownership orchestration
+  (`CPS-704`, `OPS-704`; canonical future design:
+  `docs/superpowers/specs/2026-07-24-openstack-cmp-org-workspace-binding-spec.md`).
 - MS organization/domain and TMS workspace/project integration.
+- BMS product, SKU, pricing, subscription, usage, and billing integration.
 - LMS audit event publisher.
 - VMware provider service.
 - Webhook/SSE operation notifications.
@@ -245,7 +259,7 @@ future migration explicitly reopens them.
 - Cursor pagination migration if offset performance becomes insufficient.
 - Shared contracts package after a second provider justifies it.
 
-## Epic CPS-E7 — Scoped connections and identity inventory
+## Epic CPS-E7 — Provider scope and identity inventory
 
 ### CPS-701 — Canonical resource-operation and scope contracts
 
@@ -257,13 +271,14 @@ future migration explicitly reopens them.
   existing VM contracts remain compatible; no secret or SDK object is
   serializable.
 
-### CPS-702 — Scoped provider-connection migration and API
+### CPS-702 — Provider privilege scope metadata and validation
 
 - **Sprint/Priority/Points:** 7 / Must / 8
-- **Depends on:** CPS-203, CPS-701
+- **Depends on:** CPS-201, CPS-701
 - **Coordinates with:** OPS-702
-- **Acceptance:** `SYSTEM`/`DOMAIN`/`PROJECT` scopes are explicit; existing
-  connections migrate to `PROJECT`; clean/upgrade/downgrade migration gates
+- **Acceptance:** validated `SYSTEM`/`DOMAIN`/`PROJECT` privilege scope is stored
+  on the provider aggregate; legacy connection rows collapse into the provider
+  aggregate without credential loss; clean/upgrade/downgrade migration gates
   pass; validated scope becomes immutable; public responses remain secret-free.
 
 ### CPS-703 — Domain/project inventory persistence and query
@@ -272,23 +287,8 @@ future migration explicitly reopens them.
 - **Depends on:** CPS-301..305, CPS-701
 - **Coordinates with:** OPS-703
 - **Acceptance:** domain and owner-aware project inventory reconcile without
-  name-based merging or cross-connection duplication; partial sync never
+  name-based merging or cross-provider duplication; partial sync never
   deletes; list/get filters and targeted tombstones work.
-
-### CPS-704 — CMP-owned domain/project binding APIs
-
-- **Sprint/Priority/Points:** 10 / Must / 13
-- **Depends on:** CPS-702, CPS-703
-- **Tasks:** explicit create/list/get APIs for OpenStack domain/project
-  bindings; binding tables or rows that persist `org_id` for domains and
-  `org_id + workspace_id` for projects; idempotent natural-key create;
-  conflict-on-name-collision without binding adoption; inventory remains
-  read-only for ownership.
-- **Acceptance:** CMP can request CPS to create an OpenStack domain from an
-  `org_id` and an OpenStack project from an `org_id + workspace_id`; the
-  binding row is the source of truth; inventory refresh cannot create or
-  reassign bindings; schema keeps provider type and binding kind explicit for
-  later VMware support.
 
 ## Epic CPS-E8 — Identity lifecycle and quotas
 
@@ -298,7 +298,7 @@ future migration explicitly reopens them.
 - **Depends on:** CPS-701..703
 - **Coordinates with:** OPS-801
 - **Acceptance:** create/update/disable/delete return durable idempotent
-  operations; connection scope and owner domain validate; results update
+  operations; provider privilege scope and owner domain validate; results update
   inventory; dependency conflict and already-absent behavior are deterministic.
 
 ### CPS-802 — Role and assignment inventory/API

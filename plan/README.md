@@ -7,7 +7,11 @@
 
 ## Product goal
 
-Deliver CPS as the durable, provider-neutral control plane that manages OpenStack provider onboarding, inventory, and VM operations through OPS. Each sprint must produce an integrated, testable increment and preserve the future Keycloak, TMS, LMS, and VMware extension boundaries.
+Deliver CPS as the durable, provider-neutral control plane that manages OpenStack
+provider onboarding, inventory, and VM operations through OPS. CPS and OPS
+operate independently and do not integrate with TMS or BMS in the current
+delivery. Each sprint must produce an integrated, testable increment and preserve
+the future Keycloak, TMS, LMS, and VMware extension boundaries.
 
 ## Working agreement
 

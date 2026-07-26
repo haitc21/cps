@@ -96,7 +96,6 @@ Recommended canonical fields for a binding record:
 
 - `id`
 - `provider_id`
-- `provider_connection_id`
 - `provider_type`
 - `binding_kind`
 - `org_id`
@@ -135,14 +134,12 @@ uniqueness rules.
 
 The database must enforce the following natural keys:
 
-- one OpenStack domain binding per `(provider_connection_id, org_id)`
-- one OpenStack project binding per
-  `(provider_connection_id, org_id, workspace_id)`
+- one OpenStack domain binding per `(provider_id, org_id)`
+- one OpenStack project binding per `(provider_id, org_id, workspace_id)`
 
 Additional safety constraints:
 
-- `provider_resource_id` must be unique within a provider connection and
-  binding kind.
+- `provider_resource_id` must be unique within a provider and binding kind.
 - The project table must reference a domain binding row or at minimum persist
   the owning domain provider ID so the relationship can be reconstructed
   without name matching.
@@ -156,7 +153,7 @@ All routes live under `/api/v1`.
 
 ### 7.1 Create domain
 
-`POST /api/v1/provider-connections/{provider_connection_id}/identity-domains`
+`POST /api/v1/providers/{provider_id}/identity-domains`
 
 Request:
 
@@ -170,11 +167,11 @@ Request:
 
 Rules:
 
-- The connected provider must be `OPENSTACK`.
-- The provider connection must have system-level capability for identity
+- The provider must be `OPENSTACK`.
+- The provider aggregate must have system-level privilege for identity
   mutation.
 - `org_id` is required and immutable after create.
-- The request is idempotent on `(provider_connection_id, org_id)`.
+- The request is idempotent on `(provider_id, org_id)`.
 - If an existing binding already matches the same natural key and provider
   resource, return the existing binding.
 - If a binding exists with the same natural key but a different provider
@@ -185,7 +182,7 @@ Response:
 ```json
 {
   "id": "binding-uuid",
-  "provider_connection_id": "provider-connection-uuid",
+  "provider_id": "provider-uuid",
   "provider_type": "OPENSTACK",
   "binding_kind": "OPENSTACK_DOMAIN",
   "org_id": "org-uuid",
@@ -201,7 +198,7 @@ Response:
 
 ### 7.2 Create project
 
-`POST /api/v1/provider-connections/{provider_connection_id}/identity-projects`
+`POST /api/v1/providers/{provider_id}/identity-projects`
 
 Request:
 
@@ -216,13 +213,12 @@ Request:
 
 Rules:
 
-- The connected provider must be `OPENSTACK`.
-- The provider connection must have system-level capability for identity
+- The provider must be `OPENSTACK`.
+- The provider aggregate must have system-level privilege for identity
   mutation.
 - The matching domain binding for the same `org_id` must already exist.
 - `org_id` and `workspace_id` are both required and immutable after create.
-- The request is idempotent on
-  `(provider_connection_id, org_id, workspace_id)`.
+- The request is idempotent on `(provider_id, org_id, workspace_id)`.
 - If the domain binding is missing, fail with a dependency error.
 - If an existing binding already matches the same natural key and provider
   resource, return the existing binding.
@@ -234,7 +230,7 @@ Response:
 ```json
 {
   "id": "binding-uuid",
-  "provider_connection_id": "provider-connection-uuid",
+  "provider_id": "provider-uuid",
   "provider_type": "OPENSTACK",
   "binding_kind": "OPENSTACK_PROJECT",
   "org_id": "org-uuid",
@@ -255,7 +251,7 @@ to retrieve bindings by owner IDs without relying on provider inventory names.
 
 Required filters:
 
-- `provider_connection_id`
+- `provider_id`
 - `provider_type`
 - `binding_kind`
 - `org_id`
@@ -277,18 +273,22 @@ only a display field.
 
 The expected control flow is:
 
-1. CMP obtains or already knows `org_id` and `workspace_id`.
-2. CMP checks whether an OpenStack domain binding already exists for the
-   organization.
-3. If not, CMP calls the CPS create-domain API.
-4. CPS commands OPS to create the OpenStack domain.
-5. CPS persists the binding row with `org_id`.
-6. CMP checks whether an OpenStack project binding already exists for the
-   workspace.
-7. If not, CMP calls the CPS create-project API.
-8. CPS commands OPS to create the OpenStack project under the owning domain.
-9. CPS persists the binding row with `org_id` and `workspace_id`.
-10. CMP uses the resulting bindings when creating workload resources.
+1. CMP admin onboarded the provider through the single `POST /api/v1/providers`
+   endpoint and received a `provider_id`.
+2. CMP obtains or already knows `org_id` and `workspace_id`.
+3. CMP checks whether an OpenStack domain binding already exists for the
+   organization on that provider.
+4. If not, CMP calls `POST /api/v1/providers/{provider_id}/identity-domains`.
+5. CPS resolves the provider aggregate (encrypted credentials and connection
+   metadata) and commands OPS to create the OpenStack domain.
+6. CPS persists the binding row with `provider_id` and `org_id`.
+7. CMP checks whether an OpenStack project binding already exists for the
+   workspace on that provider.
+8. If not, CMP calls `POST /api/v1/providers/{provider_id}/identity-projects`.
+9. CPS commands OPS to create the OpenStack project under the owning domain.
+10. CPS persists the binding row with `provider_id`, `org_id`, and
+    `workspace_id`.
+11. CMP uses the resulting bindings when creating workload resources.
 
 This flow is intentional:
 
@@ -305,9 +305,9 @@ OPS must implement OpenStack identity mutations for:
 
 OPS requirements:
 
-- use the resolved provider connection and credential only for the active
-  request;
-- validate that the connection scope is sufficient before mutation;
+- resolve the provider aggregate from CPS and use its encrypted credentials and
+  connection metadata only for the active request;
+- validate that the provider privilege scope is sufficient before mutation;
 - return the provider-side resource ID and name on success;
 - normalize errors into safe CPS-facing error codes;
 - not persist provider state locally;
@@ -341,7 +341,7 @@ This rule is the main guardrail against the earlier incorrect flow.
 The implementation must use explicit, stable errors. Recommended errors:
 
 - `PROVIDER_NOT_OPENSTACK`
-- `PROVIDER_CONNECTION_SCOPE_INSUFFICIENT`
+- `PROVIDER_SCOPE_INSUFFICIENT`
 - `DOMAIN_BINDING_NOT_FOUND`
 - `PROJECT_DEPENDS_ON_DOMAIN`
 - `DOMAIN_ALREADY_BOUND`
@@ -381,11 +381,11 @@ OpenStack-specific validation.
 
 The spec is considered satisfied when all of the following are true:
 
-- CPS exposes a create-domain API that requires `org_id`.
-- CPS exposes a create-project API that requires `org_id` and
-  `workspace_id`.
-- CPS stores `org_id` on domain binding rows.
-- CPS stores `org_id` and `workspace_id` on project binding rows.
+- CPS exposes create-domain and create-project APIs under
+  `/api/v1/providers/{provider_id}/...` that require the stated owner IDs.
+- CPS stores `provider_id` and `org_id` on domain binding rows.
+- CPS stores `provider_id`, `org_id`, and `workspace_id` on project binding
+  rows.
 - Project creation fails if the matching domain binding does not exist.
 - Repeated create requests for the same natural key are idempotent.
 - Discovery/inventory cannot auto-create or auto-adopt bindings.

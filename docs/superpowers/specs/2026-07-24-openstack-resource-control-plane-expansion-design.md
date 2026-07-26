@@ -55,7 +55,7 @@ Identity:
 - project lifecycle under a domain;
 - project quota read/update for compute, network, and block storage;
 - role inventory and role assignment lifecycle;
-- administrative and project-scoped provider connections.
+- administrative provider privilege scopes on the provider aggregate.
 
 Compute catalog:
 
@@ -104,11 +104,12 @@ Cross-cutting:
 - OpenStack notification-bus ingestion;
 - VMware behavior.
 
-## 4. Provider connection scope
+## 4. Provider privilege scope
 
-The current invariant that one connection represents exactly one OpenStack
-project and region cannot support creation of domains or projects. Replace it
-with an explicit scope model:
+The current invariant that one provider represents exactly one OpenStack
+project and region cannot support creation of domains or projects. Store an
+explicit privilege scope on the provider aggregate instead of a separate
+connection object:
 
 | Scope kind | OpenStack scope | Permitted use |
 |---|---|---|
@@ -118,15 +119,16 @@ with an explicit scope model:
 
 Rules:
 
-- Existing provider connections migrate to `PROJECT`.
-- Every connection remains bound to exactly one provider and region.
+- Existing legacy connection rows collapse into the provider aggregate; onboarded
+  providers default to validated `PROJECT` scope until revalidated.
+- Each provider remains bound to exactly one region in connection metadata.
 - Scope identifiers are explicit and immutable after successful validation.
 - A command declares its required scope kind.
-- CPS rejects a command when the selected connection cannot satisfy the common
+- CPS rejects a command when the selected provider cannot satisfy the common
   scope rule.
 - OPS revalidates token scope and provider ownership immediately before
   mutation.
-- CPS never infers administrative authority solely from a role or connection
+- CPS never infers administrative authority solely from a role or provider
   name.
 - Credential material and tokens remain secret and are never included in
   inventory or operation results.
@@ -136,11 +138,12 @@ Rules:
 Every new typed resource follows the existing inventory identity:
 
 ```text
-(provider_connection_id, provider_resource_id)
+(provider_id, provider_resource_id)
 ```
 
-Administrative resources visible through several project connections require a
-stable provider-level identity. CPS therefore additionally records:
+Administrative resources visible through several project-scoped workload
+contexts require a stable provider-level identity. CPS therefore additionally
+records:
 
 - `provider_id`;
 - `region_name` where applicable;
@@ -149,9 +152,10 @@ stable provider-level identity. CPS therefore additionally records:
 - `owner_project_provider_resource_id`.
 
 The migration must prevent duplicate common resources when the same domain,
-project, flavor, image, or external network is observed from multiple
-connections. The implementation plan must choose and test one canonical
-inventory owner plus visibility bindings; it must not silently merge by name.
+project, flavor, image, or external network is observed from multiple workload
+contexts on the same provider. The implementation plan must choose and test one
+canonical inventory owner plus visibility bindings; it must not silently merge
+by name.
 
 New typed models:
 
@@ -197,7 +201,7 @@ GET /api/v1/volumes
 GET /api/v1/volume-snapshots
 ```
 
-Every list API supports allow-listed filtering by provider, connection, owner
+Every list API supports allow-listed filtering by provider, owner
 domain/project, lifecycle state, and resource-specific safe fields. Provider
 attributes remain versioned and are not a substitute for common query fields.
 
@@ -207,25 +211,25 @@ Mutations are asynchronous and return `202 Accepted`, `operation_id`,
 `status_url`, and correlation ID. Representative endpoints are:
 
 ```text
-POST   /api/v1/provider-connections/{id}/identity-domains
+POST   /api/v1/providers/{id}/identity-domains
 PATCH  /api/v1/identity-domains/{id}
 DELETE /api/v1/identity-domains/{id}
 
-POST   /api/v1/provider-connections/{id}/projects
+POST   /api/v1/providers/{id}/projects
 PATCH  /api/v1/projects/{id}
 DELETE /api/v1/projects/{id}
 PUT    /api/v1/projects/{id}/quotas
 
-POST   /api/v1/provider-connections/{id}/networks
-POST   /api/v1/provider-connections/{id}/subnets
-POST   /api/v1/provider-connections/{id}/routers
+POST   /api/v1/providers/{id}/networks
+POST   /api/v1/providers/{id}/subnets
+POST   /api/v1/providers/{id}/routers
 PUT    /api/v1/routers/{id}/interfaces/{subnet_id}
-POST   /api/v1/provider-connections/{id}/security-groups
-POST   /api/v1/provider-connections/{id}/floating-ips
+POST   /api/v1/providers/{id}/security-groups
+POST   /api/v1/providers/{id}/floating-ips
 
-POST   /api/v1/provider-connections/{id}/volumes
+POST   /api/v1/providers/{id}/volumes
 POST   /api/v1/volumes/{id}/attachments
-POST   /api/v1/provider-connections/{id}/volume-snapshots
+POST   /api/v1/providers/{id}/volume-snapshots
 ```
 
 Destructive APIs require an explicit precondition:
@@ -266,7 +270,7 @@ failure, replay, and tombstone fixtures.
 Create:
 
 - CPS idempotency uniqueness remains
-  `(provider_connection_id, operation_type, idempotency_key)`.
+  `(provider_id, operation_type, idempotency_key)`.
 - OPS uses a provider-supported operation marker when possible.
 - When markers are unavailable, OPS searches by immutable provider identity or
   uses a deterministic provider-side request token where supported.
@@ -327,8 +331,9 @@ the final authority immediately before provider mutation.
 
 ## 9. Security and validation
 
-- Administrative operations require a connection whose validated scope permits
-  the action; IAM enforcement is deferred, not replaced with implicit trust.
+- Administrative operations require a provider whose validated privilege scope
+  permits the action; IAM enforcement is deferred, not replaced with implicit
+  trust.
 - Public API deployment remains restricted to a trusted internal network until
   IAM is integrated.
 - CIDR, allocation pool, gateway, DNS, route, protocol, port range, image
@@ -345,7 +350,7 @@ the final authority immediately before provider mutation.
 
 | Sprint | Outcome |
 |---|---|
-| 7 | Contract, scoped-connection, domain/project inventory and lifecycle foundation |
+| 7 | Contract, provider privilege scope, domain/project inventory and lifecycle foundation |
 | 8 | Roles, assignments, quotas, availability zones, and administrative acceptance |
 | 9 | Network, subnet, router, port, security-group, and floating-IP control |
 | 10 | Volume/type/snapshot and image/flavor catalog control |
@@ -360,7 +365,7 @@ Implementation must not begin until:
 
 - this design delta is approved;
 - CPS canonical request/result/error schemas for the first slice are reviewed;
-- the provider connection migration and rollback plan is reviewed;
+- the provider aggregate migration and rollback plan is reviewed;
 - OpenStack administrative test credentials and disposable domain/project
   naming are approved;
 - cleanup ownership and quotas for real-cloud tests are documented;

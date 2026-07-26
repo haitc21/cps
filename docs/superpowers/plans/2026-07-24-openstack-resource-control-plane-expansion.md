@@ -41,7 +41,7 @@ Client
   │ REST: provider-neutral resource request
   ▼
 CPS API
-  ├─ validate common shape, connection scope, references
+  ├─ validate common shape, provider privilege scope, references
   ├─ create durable operation + outbox
   └─ persist normalized inventory/result
        │ RabbitMQ command/event
@@ -74,7 +74,7 @@ Deliver:
 - resource reference and owner-scope models;
 - create/update/delete/ensure/remove result envelope;
 - normalized resource snapshot and tombstone;
-- required connection scope;
+- required provider privilege scope;
 - safe partial-result representation for relationship operations;
 - semantic validators for operation type and payload;
 - success, failure, replay, already-absent, and unsupported fixtures.
@@ -142,11 +142,11 @@ Acceptance:
 - transient failure retries remain bounded;
 - shutdown safely finishes or nacks in-flight mutations.
 
-## Workstream B — scoped provider connections
+## Workstream B — provider privilege scope on the aggregate
 
 ### Task B1 — CPS schema and migration
 
-Add:
+Add to the provider aggregate:
 
 - `scope_kind` with `SYSTEM`, `DOMAIN`, `PROJECT`;
 - optional domain/project provider IDs;
@@ -155,9 +155,10 @@ Add:
 
 Migration rules:
 
-- existing rows become `PROJECT`;
-- existing project name/domain fields are preserved;
-- downgrade restores the previous columns without discarding credentials;
+- legacy connection rows collapse into the provider aggregate as `PROJECT`;
+- existing project name/domain fields are preserved on the aggregate;
+- downgrade restores the previous columns without discarding encrypted
+  credentials;
 - migration refuses ambiguous invalid rows instead of guessing.
 
 Acceptance:
@@ -195,7 +196,7 @@ Acceptance:
 - provider identity is ID-based;
 - parent/domain metadata remains bounded;
 - partial identity failure cannot delete inventory;
-- multiple connections do not create duplicate canonical domains.
+- multiple workload contexts do not create duplicate canonical domains.
 
 ### Task C2 — Domain lifecycle
 
@@ -266,7 +267,8 @@ IP typed inventory. Extend network/subnet/port ownership fields.
 ### Task D2 — Network and subnet lifecycle
 
 Support create/update/delete with CIDR, IP version, DHCP, gateway, DNS,
-allocation pool, shared/external flags gated by connection scope and capability.
+allocation pool, shared/external flags gated by provider privilege scope and
+capability.
 
 ### Task D3 — Router and interface lifecycle
 
@@ -372,18 +374,18 @@ Add:
 
 ## Sprint forecast
 
-### Sprint 7 — scoped connection and identity foundation
+### Sprint 7 — provider privilege scope and identity foundation
 
 Stories:
 
 - CPS-701 canonical resource-operation contracts;
-- CPS-702 scoped provider-connection migration/API;
+- CPS-702 provider privilege scope metadata and validation;
 - CPS-703 domain/project inventory persistence and query;
 - OPS-701 pin resource-operation contracts;
-- OPS-702 scope discovery;
+- OPS-702 provider privilege scope discovery;
 - OPS-703 domain/project collectors.
 
-Exit: an administrative connection validates its effective scope and CPS
+Exit: an onboarded provider validates its effective privilege scope and CPS
 convergently inventories domains/projects. No provider mutation is enabled
 until the contract, migration, and replay design pass review.
 
@@ -450,11 +452,12 @@ and compatibility gates.
 2. Write CPS failing contract tests and fixtures for scope/domain/project.
 3. Implement CPS canonical schemas and checksum manifest.
 4. Pin exact CPS artifacts in OPS and add validation tests.
-5. Write migration tests for existing project-scoped connections.
-6. Implement scoped connection persistence and validation response.
+5. Write migration tests for legacy connection rows collapsing into the provider
+   aggregate.
+6. Implement provider privilege scope persistence and validation response.
 7. Add domain typed persistence and extend project ownership identity.
 8. Add OPS scope discovery and domain/project collectors.
-9. Add CPS ingestion/query and cross-connection deduplication tests.
+9. Add CPS ingestion/query and cross-provider deduplication tests.
 10. Run mocked cross-service integration.
 11. Run read-only real-cloud administrative inventory acceptance.
 12. Record evidence; do not start identity mutations until Sprint 8 planning.
@@ -478,8 +481,8 @@ and compatibility gates.
 
 | Risk | Mitigation | Owner |
 |---|---|---|
-| Existing connection model assumes project scope | Explicit migration to `PROJECT`; add scope before identity mutation | CPS |
-| Same global resource appears through many connections | Canonical provider-level identity plus tested visibility bindings | CPS |
+| Existing provider model assumes project scope | Explicit privilege scope on provider aggregate before identity mutation | CPS |
+| Same global resource appears through many workload contexts | Canonical provider-level identity plus tested visibility bindings | CPS |
 | OpenStack policy differs by deployment | Capability and scope discovery; never infer from username | OPS |
 | Create APIs lack universal idempotency token | Operation marker where supported plus provider-state precondition; document exceptions | OPS |
 | Cascading dependency deletion causes data loss | No implicit cascade; explicit conflict and future composite workflows | CPS/OPS |

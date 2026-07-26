@@ -12,8 +12,16 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cps.application.provider_aggregate import (
+    AGGREGATE_SYSTEM_PROJECT_DOMAIN,
+    AGGREGATE_SYSTEM_PROJECT_NAME,
+)
 from cps.infrastructure.db.models.credentials import Credential
-from cps.infrastructure.db.models.enums import ConnectionStatus, ProviderStatus
+from cps.infrastructure.db.models.enums import (
+    ConnectionScopeKind,
+    ConnectionStatus,
+    ProviderStatus,
+)
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
 from cps.infrastructure.db.models.providers import Provider
 from cps.security.credentials import EncryptedPassword, EncryptedSecret
@@ -46,6 +54,24 @@ class AddProviderCommand:
     provider_id: uuid.UUID
     name: str
     description: str | None = None
+    status: ProviderStatus = ProviderStatus.ACTIVE
+
+
+@dataclass(frozen=True, slots=True)
+class AddProviderAggregateCommand:
+    provider_id: uuid.UUID
+    credential_id: uuid.UUID
+    connection_id: uuid.UUID
+    name: str
+    description: str | None
+    encrypted_username: EncryptedSecret
+    encrypted_password: EncryptedPassword
+    user_domain_name: str
+    auth_url: str
+    region_name: str
+    interface: str = "public"
+    verify_tls: bool = True
+    ca_cert_pem: str | None = None
     status: ProviderStatus = ProviderStatus.ACTIVE
 
 
@@ -91,6 +117,45 @@ class ProviderRepository:
             version=1,
         )
         self._session.add(provider)
+        await _flush_or_raise(self._session)
+        return provider
+
+    async def add_provider_aggregate(self, command: AddProviderAggregateCommand) -> Provider:
+        provider = Provider(
+            id=command.provider_id,
+            name=command.name,
+            description=command.description,
+            status=command.status,
+            version=1,
+        )
+        credential = Credential(
+            id=command.credential_id,
+            username_ciphertext=command.encrypted_username.ciphertext,
+            username_nonce=command.encrypted_username.nonce,
+            password_ciphertext=command.encrypted_password.ciphertext,
+            password_nonce=command.encrypted_password.nonce,
+            encryption_key_version=command.encrypted_password.key_version,
+            user_domain_name=command.user_domain_name,
+            version=1,
+        )
+        connection = ProviderConnection(
+            id=command.connection_id,
+            provider_id=command.provider_id,
+            credential_id=command.credential_id,
+            scope_kind=ConnectionScopeKind.SYSTEM,
+            project_name=AGGREGATE_SYSTEM_PROJECT_NAME,
+            project_domain_name=AGGREGATE_SYSTEM_PROJECT_DOMAIN,
+            region_name=command.region_name,
+            auth_url=command.auth_url,
+            interface=command.interface,
+            verify_tls=command.verify_tls,
+            ca_cert_pem=command.ca_cert_pem,
+            status=ConnectionStatus.PENDING_VALIDATION,
+            version=1,
+        )
+        self._session.add(provider)
+        self._session.add(credential)
+        self._session.add(connection)
         await _flush_or_raise(self._session)
         return provider
 
@@ -185,6 +250,41 @@ class ProviderRepository:
         result = await self._session.execute(select(Provider).where(Provider.id == provider_id))
         return result.scalar_one_or_none()
 
+    async def get_provider_aggregate(
+        self, provider_id: uuid.UUID
+    ) -> tuple[Provider, ProviderConnection, Credential] | None:
+        result = await self._session.execute(
+            select(ProviderConnection, Provider, Credential)
+            .join(Provider, Provider.id == ProviderConnection.provider_id)
+            .join(Credential, Credential.id == ProviderConnection.credential_id)
+            .where(
+                ProviderConnection.provider_id == provider_id,
+                ProviderConnection.scope_kind == ConnectionScopeKind.SYSTEM,
+            )
+            .order_by(ProviderConnection.created_at.asc(), ProviderConnection.id.asc())
+            .limit(1)
+        )
+        row = result.one_or_none()
+        if row is not None:
+            return row[1], row[0], row[2]
+        return await self._get_legacy_single_connection_aggregate(provider_id)
+
+    async def _get_legacy_single_connection_aggregate(
+        self, provider_id: uuid.UUID
+    ) -> tuple[Provider, ProviderConnection, Credential] | None:
+        result = await self._session.execute(
+            select(ProviderConnection, Provider, Credential)
+            .join(Provider, Provider.id == ProviderConnection.provider_id)
+            .join(Credential, Credential.id == ProviderConnection.credential_id)
+            .where(ProviderConnection.provider_id == provider_id)
+            .order_by(ProviderConnection.created_at.asc(), ProviderConnection.id.asc())
+        )
+        rows = result.all()
+        if len(rows) != 1:
+            return None
+        connection, provider, credential = rows[0]
+        return provider, connection, credential
+
     async def provider_name_exists(self, name: str, *, exclude_id: uuid.UUID | None = None) -> bool:
         query = select(func.count()).select_from(Provider).where(Provider.name == name)
         if exclude_id is not None:
@@ -255,6 +355,25 @@ class ProviderRepository:
             update(Provider)
             .where(Provider.id == provider_id, Provider.version == expected_version)
             .values(**values, version=Provider.version + 1)
+        )
+        if not isinstance(result, CursorResult) or result.rowcount != 1:
+            provider = await self.get_provider(provider_id)
+            if provider is None:
+                raise ProviderPersistenceError("provider not found")
+            raise ProviderVersionConflictError
+        await self._session.flush()
+        refreshed = await self.get_provider(provider_id)
+        if refreshed is None:
+            raise ProviderPersistenceError("provider not found")
+        return refreshed
+
+    async def increment_provider_version(
+        self, provider_id: uuid.UUID, *, expected_version: int
+    ) -> Provider:
+        result = await self._session.execute(
+            update(Provider)
+            .where(Provider.id == provider_id, Provider.version == expected_version)
+            .values(version=Provider.version + 1)
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
             provider = await self.get_provider(provider_id)

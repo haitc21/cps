@@ -4,8 +4,8 @@
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 21 combined points  
 **Sprint Goal:** CMP can explicitly ask CPS to create OpenStack domain/project
-bindings by `org_id` and `workspace_id` without using provider inventory as
-the source of truth.
+bindings by `provider_id`, `org_id`, and `workspace_id` without using provider
+inventory as the source of truth.
 
 **Canonical design:**
 `../../docs/superpowers/specs/2026-07-24-openstack-cmp-org-workspace-binding-spec.md`
@@ -18,8 +18,10 @@ the source of truth.
 
 ## Delivery tasks
 
-- [ ] Confirm contract/schema readiness for domain and project binding rows.
-- [ ] Add failing acceptance and unit tests for explicit binding creation.
+- [ ] Confirm contract/schema readiness for domain and project binding rows keyed
+  by `provider_id`.
+- [ ] Add failing acceptance and unit tests for explicit binding creation under
+  `/api/v1/providers/{provider_id}/...`.
 - [ ] Implement the smallest CPS vertical slice for domain/project binding.
 - [ ] Add migration and repository coverage for `org_id` and `workspace_id`.
 - [ ] Verify inventory cannot auto-adopt an unbound provider object.
@@ -28,10 +30,14 @@ the source of truth.
 
 ## Acceptance
 
-- `POST` create-domain requires `org_id` and persists it on the CPS binding row.
-- `POST` create-project requires `org_id` and `workspace_id` and persists both.
-- Project creation fails if the matching domain binding does not exist.
-- Create is idempotent on the natural key and fails closed on name-only collision.
+- `POST /api/v1/providers/{provider_id}/identity-domains` requires `org_id` and
+  persists it on the CPS binding row with the same `provider_id`.
+- `POST /api/v1/providers/{provider_id}/identity-projects` requires `org_id`
+  and `workspace_id` and persists both with the same `provider_id`.
+- Project creation fails if the matching domain binding does not exist for the
+  same `provider_id`.
+- Create is idempotent on `(provider_id, org_id)` or
+  `(provider_id, org_id, workspace_id)` and fails closed on name-only collision.
 - Inventory refresh remains read-only and cannot create or reassign bindings.
 - The schema keeps `provider_type` and `binding_kind` explicit so VMware can
   add different binding kinds later without replacing the model.
@@ -40,8 +46,8 @@ the source of truth.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Existing inventory tables may tempt ownership inference by name | CPS | Keep binding rows separate from inventory rows and enforce natural keys | Open |
-| Project create depends on an existing domain binding | CPS | Validate dependency before enqueueing the create operation | Open |
+| Existing inventory tables may tempt ownership inference by name | CPS | Keep binding rows separate from inventory rows and enforce `(provider_id, org_id)` natural keys | Open |
+| Project create depends on an existing domain binding | CPS | Validate dependency on the same `provider_id` before enqueueing the create operation | Open |
 | Later VMware support could pressure the model toward OpenStack-specific fields | CPS | Keep `provider_type` and `binding_kind` explicit and generic | Open |
 
 ## Review evidence

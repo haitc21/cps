@@ -8,9 +8,12 @@ from cps.contracts.errors import (
     CredentialKeyUnavailableError,
     CredentialNotFoundError,
     ProviderConnectionNotFoundError,
+    ProviderNotFoundError,
 )
 from cps.contracts.validation import CredentialResolution
+from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import ConnectionStatus, ProviderStatus
+from cps.infrastructure.db.models.provider_connections import ProviderConnection
 from cps.infrastructure.db.repositories.providers import ProviderRepository
 from cps.security.credentials import (
     AesGcmCredentialCipher,
@@ -24,6 +27,18 @@ class CredentialResolver:
     def __init__(self, repository: ProviderRepository, cipher: AesGcmCredentialCipher) -> None:
         self._repository = repository
         self._cipher = cipher
+
+    async def resolve_by_provider_id(self, provider_id: uuid.UUID) -> CredentialResolution:
+        aggregate = await self._repository.get_provider_aggregate(provider_id)
+        if aggregate is None:
+            raise ProviderNotFoundError
+        provider, connection, credential = aggregate
+        if (
+            provider.status != ProviderStatus.ACTIVE
+            or connection.status == ConnectionStatus.DISABLED
+        ):
+            raise ProviderNotFoundError
+        return self._build_resolution(connection, credential)
 
     async def resolve(
         self, credential_id: uuid.UUID, provider_connection_id: uuid.UUID
@@ -39,6 +54,11 @@ class CredentialResolver:
             or connection.status == ConnectionStatus.DISABLED
         ):
             raise ProviderConnectionNotFoundError
+        return self._build_resolution(connection, credential)
+
+    def _build_resolution(
+        self, connection: ProviderConnection, credential: Credential
+    ) -> CredentialResolution:
         try:
             username = self._cipher.decrypt_secret(
                 credential_id=credential.id,
