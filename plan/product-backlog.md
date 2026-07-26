@@ -454,3 +454,34 @@ future migration explicitly reopens them.
 - **Depends on:** CPS-1101..1103 and OPS compatibility report
 - **Acceptance:** approved end-to-end matrix passes on the target OpenStack
   cloud with provider versions, limitations, and verified cleanup recorded.
+
+## Epic CPS-E12 — Provider tenancy and authorization
+
+### CPS-1201 — Provider-owned encrypted credential
+
+- **Sprint/Priority/Points:** 13 / Must / 13
+- **Coordinates with:** OPS-1201
+- **Acceptance:** one encrypted credential belongs to each provider; scoped
+  connections have no credential FK; rotation invalidates every provider
+  connection; credential CRUD and command references are removed; no plaintext
+  enters a projection, message, log, fixture, or error.
+
+### CPS-1202 — Canonical project ownership for tenant resources
+
+- **Sprint/Priority/Points:** 13 / Must / 13
+- **Depends on:** CPS-1201, CPS-704
+- **Coordinates with:** OPS-1201
+- **Acceptance:** each tenant-owned resource preserves OpenStack project
+  identity and resolves a canonical CPS project containing TMS organization and
+  workspace IDs; refresh cannot erase ownership; unresolved resources fail
+  closed for tenant access.
+
+### CPS-1203 — Fail-closed resource authorization boundary
+
+- **Sprint/Priority/Points:** 13 / Must / 13
+- **Depends on:** CPS-1202
+- **Coordinates with:** OPS-1202
+- **Acceptance:** CPS derives ownership for every tenant read/mutation, calls a
+  strict external authorization port once per business action, persists only
+  safe decision metadata, rejects deny/unavailable/expired decisions, and uses
+  a deterministic stub without modifying TMS/LMS.
