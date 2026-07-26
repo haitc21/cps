@@ -29,7 +29,7 @@ that lets computers on the corporate LAN reach a VM.
 - [x] Implement port, security-group/rule, and floating-IP lifecycle.
 - [x] Pin CPS contracts in OPS and validate checksums.
 - [x] Add dependency, replay, partial-success, and cleanup tests.
-- [ ] Run internal topology connectivity acceptance.
+- [ ] Pass internal topology connectivity acceptance (smoke test executed; provider path is not routable).
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -44,7 +44,7 @@ that lets computers on the corporate LAN reach a VM.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Provider catalog endpoints are not routable from Compose | OPS | Internal acceptance uses reachable network endpoints; record public-IP limitation | Open |
+| Provider network path is not routable from host/controller/compute | OPS | Add a bridged external network or provider-network dataplane before repeating the VM smoke test | Blocked |
 | Existing tenant network policy differs by cloud | OPS | Use explicit network/security inputs and normalize policy errors | Open |
 | Neutron relationship operations are eventually consistent | CPS/OPS | Idempotent ensure/remove and bounded retries | Open |
 
@@ -53,8 +53,8 @@ that lets computers on the corporate LAN reach a VM.
 - Demo scenario: create network/subnet/port/security resources, attach a VM, allocate/associate a floating or provider-network address, and connect from the corporate LAN.
 - Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `358 passed, 24 skipped`; CPS DB integration `146 passed`; migration `20260724_0008` verified.
 - Contract checksum: network requests map to the pinned generic resource-operation envelope.
-- Internal connectivity result: private topology path is implemented; corporate-LAN reachability requires live floating/provider-network acceptance.
-- Known limitations: the current live environment still needs a routable external network and security-group ingress validation.
+- Internal connectivity result: a live CirrOS VM reached `ACTIVE` on `provider` with `192.168.57.141`, but ping from host, controller, and compute returned `Destination Port Unreachable`; the VM was deleted successfully.
+- Known limitations: the current live environment needs a routable external network/provider bridge and security-group ingress validation before corporate-LAN SSH acceptance can pass.
 
 ## Retrospective actions
 
