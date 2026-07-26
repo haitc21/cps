@@ -42,7 +42,8 @@ design while closing the highest-risk provider lifecycle and runtime gaps.
   drop secret-like nested fields.
 - CPS and OPS images build from pinned base/uv digests, run as UID 999, and
   pass CLI smoke checks. Compose configuration validates successfully.
-- CPS: `477 passed, 191 skipped`; OPS: `340 passed, 24 skipped`; Ruff,
+- CPS: `499 passed, 193 skipped`; OPS: `365 passed, 24 skipped`; Ruff,
   mypy, contract validation, Docker builds, and image smoke checks pass.
-- End-to-end local Compose/OpenStack demo remains open because it requires the
-  running development infrastructure and a disposable provider account.
+- End-to-end local Compose/OpenStack validation now reaches the live controller;
+  identity mutation completion remains open because the running worker did not
+  emit the terminal event for the new binding command.

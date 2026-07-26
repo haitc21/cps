@@ -1,6 +1,6 @@
 # Sprint 10 — OpenStack tenant binding and ownership
 
-**Status:** Proposed  
+**Status:** In progress  
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 21 combined points  
 **Sprint Goal:** CMP can explicitly ask CPS to create OpenStack domain/project
@@ -14,19 +14,19 @@ inventory as the source of truth.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-704 CMP-owned domain/project binding APIs | 13 | CPS | OPS-704 | Ready |
+| CPS-704 CMP-owned domain/project binding APIs | 13 | CPS | OPS-704 | In progress |
 
 ## Delivery tasks
 
-- [ ] Confirm contract/schema readiness for domain and project binding rows keyed
+- [x] Confirm contract/schema readiness for domain and project binding rows keyed
   by `provider_id`.
-- [ ] Add failing acceptance and unit tests for explicit binding creation under
+- [x] Add failing acceptance and unit tests for explicit binding creation under
   `/api/v1/providers/{provider_id}/...`.
-- [ ] Implement the smallest CPS vertical slice for domain/project binding.
-- [ ] Add migration and repository coverage for `org_id` and `workspace_id`.
-- [ ] Verify inventory cannot auto-adopt an unbound provider object.
+- [x] Implement the smallest CPS vertical slice for domain/project binding.
+- [x] Add migration and repository coverage for `org_id` and `workspace_id`.
+- [x] Verify inventory cannot auto-adopt an unbound provider object.
 - [ ] Update API and operational documentation for the new binding workflow.
-- [ ] Run the Definition of Done quality gates.
+- [x] Run the Definition of Done quality gates.
 
 ## Acceptance
 
@@ -52,10 +52,14 @@ inventory as the source of truth.
 
 ## Review evidence
 
-- Demo scenario:
-- Test/migration commands and results:
+- Demo scenario: provider onboarding and validation succeeded against the live
+  OpenStack controller; binding POST accepted and persisted a `PENDING` row.
+- Test/migration commands and results: CPS `499 passed, 193 skipped`; Ruff,
+  mypy, Alembic check, Compose health, and provider validation passed.
 - Contract checksum:
-- Known limitations:
+- Known limitations: live identity-create operation remains `QUEUED` pending OPS
+  completion-event delivery; domain mutation requires system-scoped Keystone
+  credentials, while the tested admin credential is project-scoped.
 
 ## Retrospective actions
 
