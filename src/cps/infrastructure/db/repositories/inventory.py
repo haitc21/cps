@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,6 +80,27 @@ class InventoryRepository:
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def _resolve_project_id(
+        self, provider_connection_id: uuid.UUID, provider_project_id: str | None
+    ) -> uuid.UUID | None:
+        if not provider_project_id:
+            return None
+        provider_id = await self._session.scalar(
+            select(ProviderConnection.provider_id).where(
+                ProviderConnection.id == provider_connection_id
+            )
+        )
+        if provider_id is None:
+            return None
+        project_id = await self._session.scalar(
+            select(Project.id).where(
+                Project.provider_id == provider_id,
+                Project.provider_resource_id == provider_project_id,
+                Project.lifecycle_state != "DELETED",
+            )
+        )
+        return project_id
 
     async def create_sync(
         self,
@@ -445,9 +467,33 @@ class InventoryRepository:
             "deleted_at": None,
             "provider_attributes": copy.deepcopy(item.get("attributes", {})),
         }
+        attrs = item.get("attributes", {})
+        owner_project_id = (
+            item.get("project_provider_resource_id")
+            or item.get("project_id")
+            or item.get("tenant_id")
+            or attrs.get("project_id")
+            or attrs.get("tenant_id")
+        )
+        if model is not Project and hasattr(model, "project_id"):
+            values["project_provider_resource_id"] = owner_project_id
+            values["project_id"] = await self._resolve_project_id(
+                provider_connection_id, owner_project_id
+            )
         # Promote identity ownership fields to typed columns while retaining
         # provider_attributes for provider-specific data.
         if model is Project:
+            provider_id = await self._session.scalar(
+                select(ProviderConnection.provider_id).where(
+                    ProviderConnection.id == provider_connection_id
+                )
+            )
+            values["provider_id"] = provider_id
+            values["org_id"] = item.get("org_id") or attrs.get("org_id")
+            values["workspace_id"] = item.get("workspace_id") or attrs.get("workspace_id")
+            values["ownership_state"] = (
+                "MANAGED" if values["org_id"] and values["workspace_id"] else "UNBOUND"
+            )
             values["domain_provider_resource_id"] = item.get(
                 "domain_provider_resource_id"
             ) or item.get("attributes", {}).get("domain_provider_resource_id")
@@ -533,6 +579,29 @@ class InventoryRepository:
                         statement.excluded.owner_project_provider_resource_id
                     ),
                     "enabled": statement.excluded.enabled,
+                    "provider_id": statement.excluded.provider_id,
+                    "org_id": statement.excluded.org_id,
+                    "workspace_id": statement.excluded.workspace_id,
+                    "ownership_state": statement.excluded.ownership_state,
+                    "updated_at": now,
+                },
+            )
+        elif hasattr(model, "project_id") and model is not Quota:
+            statement = statement.on_conflict_do_update(
+                index_elements=["provider_connection_id", "provider_resource_id"],
+                set_={
+                    "name": statement.excluded.name,
+                    "provider_status": statement.excluded.provider_status,
+                    "last_seen_at": statement.excluded.last_seen_at,
+                    "last_sync_id": statement.excluded.last_sync_id,
+                    "lifecycle_state": statement.excluded.lifecycle_state,
+                    "deleted_at": now if item.get("lifecycle_state") == "DELETED" else None,
+                    "provider_attributes": statement.excluded.provider_attributes,
+                    "project_id": sa.func.coalesce(statement.excluded.project_id, model.project_id),
+                    "project_provider_resource_id": sa.func.coalesce(
+                        statement.excluded.project_provider_resource_id,
+                        model.project_provider_resource_id,
+                    ),
                     "updated_at": now,
                 },
             )

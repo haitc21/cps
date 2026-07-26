@@ -19,7 +19,6 @@ from cps.contracts.errors import (
     VersionConflictError,
 )
 from cps.identifiers import new_uuid7
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import ConnectionStatus, ProviderStatus
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
 from cps.infrastructure.db.models.providers import Provider
@@ -42,7 +41,6 @@ def to_view(
     provider: Provider,
     *,
     connection: ProviderConnection,
-    credential: Credential,
 ) -> ProviderView:
     return ProviderView.model_validate(
         {
@@ -55,7 +53,7 @@ def to_view(
             "created_at": provider.created_at,
             "updated_at": provider.updated_at,
             "auth_url": connection.auth_url,
-            "user_domain_name": credential.user_domain_name,
+            "user_domain_name": getattr(provider, "user_domain_name", "Default"),
             "region_name": connection.region_name,
             "interface": connection.interface,
             "verify_tls": connection.verify_tls,
@@ -82,17 +80,16 @@ class ProviderService:
         if await self._repository.provider_name_exists(command.name):
             raise ProviderNameConflictError
         provider_id = new_uuid7()
-        credential_id = new_uuid7()
         connection_id = new_uuid7()
         try:
             encrypted_username = self._cipher.encrypt_secret(
-                credential_id=credential_id,
+                credential_id=provider_id,
                 field_label="username",
                 plaintext=command.username,
                 key_version=self._active_key,
             )
             encrypted_password = self._cipher.encrypt_password(
-                credential_id=credential_id,
+                credential_id=provider_id,
                 plaintext=command.password,
                 key_version=self._active_key,
             )
@@ -101,7 +98,6 @@ class ProviderService:
         provider = await self._repository.add_provider_aggregate(
             AddProviderAggregateCommand(
                 provider_id=provider_id,
-                credential_id=credential_id,
                 connection_id=connection_id,
                 name=command.name,
                 description=command.description,
@@ -120,15 +116,43 @@ class ProviderService:
         aggregate = await self._repository.get_provider_aggregate(provider.id)
         if aggregate is None:
             raise ProviderNotFoundError
-        provider_row, connection_row, credential_row = aggregate
-        return to_view(provider_row, connection=connection_row, credential=credential_row)
+        provider_row, connection_row = aggregate[:2]
+        if len(aggregate) == 3:
+            legacy_credential = aggregate[2]
+            for field in (
+                "user_domain_name",
+                "username_ciphertext",
+                "username_nonce",
+                "password_ciphertext",
+                "password_nonce",
+                "encryption_key_version",
+            ):
+                if hasattr(legacy_credential, field):
+                    setattr(provider_row, field, getattr(legacy_credential, field))
+            if hasattr(legacy_credential, "id"):
+                provider_row._legacy_credential_id = legacy_credential.id
+        return to_view(provider_row, connection=connection_row)
 
     async def get(self, provider_id: uuid.UUID) -> ProviderView:
         aggregate = await self._repository.get_provider_aggregate(provider_id)
         if aggregate is None:
             raise ProviderNotFoundError
-        provider, connection, credential = aggregate
-        return to_view(provider, connection=connection, credential=credential)
+        provider, connection = aggregate[:2]
+        if len(aggregate) == 3:
+            legacy_credential = aggregate[2]
+            for field in (
+                "user_domain_name",
+                "username_ciphertext",
+                "username_nonce",
+                "password_ciphertext",
+                "password_nonce",
+                "encryption_key_version",
+            ):
+                if hasattr(legacy_credential, field):
+                    setattr(provider, field, getattr(legacy_credential, field))
+            if hasattr(legacy_credential, "id"):
+                provider._legacy_credential_id = legacy_credential.id
+        return to_view(provider, connection=connection)
 
     async def list(
         self,
@@ -155,8 +179,8 @@ class ProviderService:
             aggregate = await self._repository.get_provider_aggregate(provider.id)
             if aggregate is None:
                 continue
-            connection, credential = aggregate[1], aggregate[2]
-            items.append(to_view(provider, connection=connection, credential=credential))
+            connection = aggregate[1]
+            items.append(to_view(provider, connection=connection))
         return ProviderPage(
             items=items,
             page=PageInfo(offset=offset, limit=limit, total=total),
@@ -170,7 +194,21 @@ class ProviderService:
         aggregate = await self._repository.get_provider_aggregate(provider_id)
         if aggregate is None:
             raise ProviderNotFoundError
-        provider, connection, credential = aggregate
+        provider, connection = aggregate[:2]
+        if len(aggregate) == 3:
+            legacy_credential = aggregate[2]
+            for field in (
+                "user_domain_name",
+                "username_ciphertext",
+                "username_nonce",
+                "password_ciphertext",
+                "password_nonce",
+                "encryption_key_version",
+            ):
+                if hasattr(legacy_credential, field):
+                    setattr(provider, field, getattr(legacy_credential, field))
+            if hasattr(legacy_credential, "id"):
+                provider._legacy_credential_id = legacy_credential.id
         if patch.name is not None and await self._repository.provider_name_exists(
             patch.name, exclude_id=provider_id
         ):
@@ -219,46 +257,53 @@ class ProviderService:
                 username = patch.username
                 if username is None:
                     username = self._cipher.decrypt_secret(
-                        credential_id=credential.id,
+                        credential_id=getattr(provider, "_legacy_credential_id", provider.id),
                         field_label="username",
                         encrypted=EncryptedSecret(
-                            ciphertext=credential.username_ciphertext,
-                            nonce=credential.username_nonce,
-                            key_version=credential.encryption_key_version,
+                            ciphertext=provider.username_ciphertext,
+                            nonce=provider.username_nonce,
+                            key_version=provider.encryption_key_version,
                         ),
                     )
                 password = patch.password
                 if password is None:
                     password = self._cipher.decrypt_password(
-                        credential_id=credential.id,
+                        credential_id=getattr(provider, "_legacy_credential_id", provider.id),
                         encrypted=EncryptedPassword(
-                            ciphertext=credential.password_ciphertext,
-                            nonce=credential.password_nonce,
-                            key_version=credential.encryption_key_version,
+                            ciphertext=provider.password_ciphertext,
+                            nonce=provider.password_nonce,
+                            key_version=provider.encryption_key_version,
                         ),
                     )
                 encrypted_username = self._cipher.encrypt_secret(
-                    credential_id=credential.id,
+                    credential_id=provider.id,
                     field_label="username",
                     plaintext=username,
                     key_version=self._active_key,
                 )
                 encrypted_password = self._cipher.encrypt_password(
-                    credential_id=credential.id,
+                    credential_id=provider.id,
                     plaintext=password,
                     key_version=self._active_key,
                 )
             except CredentialEncryptionError as exc:
                 raise CredentialKeyUnavailableError from exc
             try:
-                credential = await self._repository.update_credential(
-                    credential.id,
-                    expected_version=credential.version,
-                    encrypted_username=encrypted_username,
-                    encrypted_password=encrypted_password,
-                    user_domain_name=patch.user_domain_name or credential.user_domain_name,
-                    rotated_at=datetime.now(UTC),
-                )
+                update_credential = getattr(self._repository, "update_provider_credential", None)
+                if update_credential is not None:
+                    provider = await update_credential(
+                        provider.id,
+                        expected_version=provider.version,
+                        encrypted_username=encrypted_username,
+                        encrypted_password=encrypted_password,
+                        user_domain_name=patch.user_domain_name or provider.user_domain_name,
+                        rotated_at=datetime.now(UTC),
+                    )
+                else:  # compatibility for repositories during rolling upgrades
+                    legacy_update = self._repository.update_credential  # type: ignore[attr-defined]
+                    provider = await legacy_update(
+                        provider.id, encrypted_username, encrypted_password
+                    )
             except ProviderVersionConflictError as exc:
                 raise VersionConflictError from exc
             except ProviderPersistenceError as exc:
@@ -303,4 +348,4 @@ class ProviderService:
             except ProviderPersistenceError as exc:
                 raise ProviderNotFoundError from exc
 
-        return to_view(provider, connection=connection, credential=credential)
+        return to_view(provider, connection=connection)

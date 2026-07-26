@@ -33,7 +33,7 @@ def test_internal_resolver_has_a_separate_listener_surface() -> None:
     }
 
     assert "/internal/v1/credentials/{credential_reference}" not in public_paths
-    assert "/internal/v1/credentials/{credential_reference}" in internal_paths
+    assert "/internal/v1/connections/{provider_connection_id}/resolution" in internal_paths
     assert "/internal/v1/providers/{provider_id}/resolution" not in public_paths
     assert "/internal/v1/providers/{provider_id}/resolution" in internal_paths
     assert "/api/v1/providers" not in internal_paths

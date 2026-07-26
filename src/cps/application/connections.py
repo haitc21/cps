@@ -12,7 +12,6 @@ from cps.api.schemas.connections import (
     PageInfo,
 )
 from cps.contracts.errors import (
-    CredentialNotFoundError,
     ProviderConnectionConflictError,
     ProviderConnectionNotFoundError,
     ProviderNotFoundError,
@@ -66,10 +65,6 @@ class ConnectionService:
             raise ProviderNotFoundError
         if provider.status != ProviderStatus.ACTIVE:
             raise ProviderConnectionConflictError("Provider is disabled")
-        if await self._repository.get_credential(body.credential_id) is None:
-            from cps.contracts.errors import CredentialNotFoundError
-
-            raise CredentialNotFoundError
         try:
             connection = await self._repository.add_connection(
                 AddConnectionCommand(
@@ -116,13 +111,7 @@ class ConnectionService:
         if connection.version != body.expected_version:
             raise VersionConflictError
         changes = body.model_dump(exclude={"expected_version"}, exclude_unset=True)
-        if (
-            "credential_id" in changes
-            and await self._repository.get_credential(changes["credential_id"]) is None
-        ):
-            raise CredentialNotFoundError
         material = {
-            "credential_id",
             "scope_kind",
             "scope_domain_provider_resource_id",
             "scope_project_provider_resource_id",

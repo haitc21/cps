@@ -6,14 +6,13 @@ import uuid
 
 from cps.contracts.errors import (
     CredentialKeyUnavailableError,
-    CredentialNotFoundError,
     ProviderConnectionNotFoundError,
     ProviderNotFoundError,
 )
 from cps.contracts.validation import CredentialResolution
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import ConnectionStatus, ProviderStatus
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
+from cps.infrastructure.db.models.providers import Provider
 from cps.infrastructure.db.repositories.providers import ProviderRepository
 from cps.security.credentials import (
     AesGcmCredentialCipher,
@@ -32,49 +31,59 @@ class CredentialResolver:
         aggregate = await self._repository.get_provider_aggregate(provider_id)
         if aggregate is None:
             raise ProviderNotFoundError
-        provider, connection, credential = aggregate
+        provider, connection = aggregate[:2]
+        if len(aggregate) == 3:
+            legacy_credential = aggregate[2]
+            for field in (
+                "user_domain_name",
+                "username_ciphertext",
+                "username_nonce",
+                "password_ciphertext",
+                "password_nonce",
+                "encryption_key_version",
+            ):
+                if hasattr(legacy_credential, field):
+                    setattr(provider, field, getattr(legacy_credential, field))
+            if hasattr(legacy_credential, "id"):
+                provider._legacy_credential_id = legacy_credential.id
         if (
             provider.status != ProviderStatus.ACTIVE
             or connection.status == ConnectionStatus.DISABLED
         ):
             raise ProviderNotFoundError
-        return self._build_resolution(connection, credential)
+        return self._build_resolution(provider, connection)
 
-    async def resolve(
-        self, credential_id: uuid.UUID, provider_connection_id: uuid.UUID
-    ) -> CredentialResolution:
-        row = await self._repository.get_connection_credential(
-            provider_connection_id, credential_id
-        )
+    async def resolve(self, provider_connection_id: uuid.UUID) -> CredentialResolution:
+        row = await self._repository.get_connection_provider(provider_connection_id)
         if row is None:
-            raise CredentialNotFoundError
-        connection, provider, credential = row
+            raise ProviderConnectionNotFoundError
+        connection, provider = row
         if (
             provider.status != ProviderStatus.ACTIVE
             or connection.status == ConnectionStatus.DISABLED
         ):
             raise ProviderConnectionNotFoundError
-        return self._build_resolution(connection, credential)
+        return self._build_resolution(provider, connection)
 
     def _build_resolution(
-        self, connection: ProviderConnection, credential: Credential
+        self, provider: Provider, connection: ProviderConnection
     ) -> CredentialResolution:
         try:
             username = self._cipher.decrypt_secret(
-                credential_id=credential.id,
+                credential_id=getattr(provider, "_legacy_credential_id", provider.id),
                 field_label="username",
                 encrypted=EncryptedSecret(
-                    ciphertext=credential.username_ciphertext,
-                    nonce=credential.username_nonce,
-                    key_version=credential.encryption_key_version,
+                    ciphertext=provider.username_ciphertext,
+                    nonce=provider.username_nonce,
+                    key_version=provider.encryption_key_version,
                 ),
             )
             password = self._cipher.decrypt_password(
-                credential_id=credential.id,
+                credential_id=getattr(provider, "_legacy_credential_id", provider.id),
                 encrypted=EncryptedPassword(
-                    ciphertext=credential.password_ciphertext,
-                    nonce=credential.password_nonce,
-                    key_version=credential.encryption_key_version,
+                    ciphertext=provider.password_ciphertext,
+                    nonce=provider.password_nonce,
+                    key_version=provider.encryption_key_version,
                 ),
             )
         except CredentialEncryptionError as exc:
@@ -85,7 +94,7 @@ class CredentialResolver:
                 "auth_url": connection.auth_url,
                 "username": username,
                 "password": password,
-                "user_domain_name": credential.user_domain_name,
+                "user_domain_name": provider.user_domain_name,
                 "scope_kind": connection.scope_kind.value,
                 "project_name": connection.project_name,
                 "project_domain_name": connection.project_domain_name,

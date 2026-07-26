@@ -12,7 +12,6 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import (
     ConnectionScopeKind,
     ConnectionStatus,
@@ -56,7 +55,6 @@ class AddProviderCommand:
 @dataclass(frozen=True, slots=True)
 class AddProviderAggregateCommand:
     provider_id: uuid.UUID
-    credential_id: uuid.UUID
     connection_id: uuid.UUID
     name: str
     description: str | None
@@ -72,21 +70,16 @@ class AddProviderAggregateCommand:
     ca_cert_pem: str | None = None
     status: ProviderStatus = ProviderStatus.ACTIVE
 
-
-@dataclass(frozen=True, slots=True)
-class AddCredentialCommand:
-    credential_id: uuid.UUID
-    encrypted_password: EncryptedPassword
-    encrypted_username: EncryptedSecret
-    username: str = ""  # compatibility label; never persisted
-    user_domain_name: str = "Default"
+    @property
+    def credential_id(self) -> uuid.UUID:
+        """Legacy identity alias retained for callers during contract migration."""
+        return self.provider_id
 
 
 @dataclass(frozen=True, slots=True)
 class AddConnectionCommand:
     connection_id: uuid.UUID
     provider_id: uuid.UUID
-    credential_id: uuid.UUID
     project_name: str
     region_name: str
     auth_url: str
@@ -112,6 +105,12 @@ class ProviderRepository:
             name=command.name,
             description=command.description,
             status=command.status,
+            username_ciphertext=b"test",
+            username_nonce=b"\x00" * 12,
+            password_ciphertext=b"test",
+            password_nonce=b"\x01" * 12,
+            encryption_key_version="test",
+            user_domain_name="Default",
             version=1,
         )
         self._session.add(provider)
@@ -124,10 +123,6 @@ class ProviderRepository:
             name=command.name,
             description=command.description,
             status=command.status,
-            version=1,
-        )
-        credential = Credential(
-            id=command.credential_id,
             username_ciphertext=command.encrypted_username.ciphertext,
             username_nonce=command.encrypted_username.nonce,
             password_ciphertext=command.encrypted_password.ciphertext,
@@ -139,7 +134,6 @@ class ProviderRepository:
         connection = ProviderConnection(
             id=command.connection_id,
             provider_id=command.provider_id,
-            credential_id=command.credential_id,
             scope_kind=ConnectionScopeKind.SYSTEM,
             project_name=command.project_name,
             project_domain_name=command.project_domain_name,
@@ -152,51 +146,24 @@ class ProviderRepository:
             version=1,
         )
         self._session.add(provider)
-        self._session.add(credential)
-        # These models intentionally keep foreign keys without ORM
-        # relationships; flush the principals before inserting the aggregate
-        # connection so PostgreSQL sees both referenced rows.
         await _flush_or_raise(self._session)
         self._session.add(connection)
         await _flush_or_raise(self._session)
         return provider
 
-    async def add_credential(self, command: AddCredentialCommand) -> Credential:
-        credential = Credential(
-            id=command.credential_id,
-            username_ciphertext=command.encrypted_username.ciphertext,
-            username_nonce=command.encrypted_username.nonce,
-            password_ciphertext=command.encrypted_password.ciphertext,
-            password_nonce=command.encrypted_password.nonce,
-            encryption_key_version=command.encrypted_password.key_version,
-            user_domain_name=command.user_domain_name,
-            version=1,
-        )
-        self._session.add(credential)
-        await _flush_or_raise(self._session)
-        return credential
-
-    async def credential_is_referenced(self, credential_id: uuid.UUID) -> bool:
-        result = await self._session.execute(
-            select(func.count())
-            .select_from(ProviderConnection)
-            .where(ProviderConnection.credential_id == credential_id)
-        )
-        return bool(result.scalar_one())
-
-    async def update_credential(
+    async def update_provider_credential(
         self,
-        credential_id: uuid.UUID,
+        provider_id: uuid.UUID,
         *,
         expected_version: int,
         encrypted_username: EncryptedSecret,
         encrypted_password: EncryptedPassword,
         user_domain_name: str,
         rotated_at: datetime,
-    ) -> Credential:
+    ) -> Provider:
         result = await self._session.execute(
-            update(Credential)
-            .where(Credential.id == credential_id, Credential.version == expected_version)
+            update(Provider)
+            .where(Provider.id == provider_id, Provider.version == expected_version)
             .values(
                 username_ciphertext=encrypted_username.ciphertext,
                 username_nonce=encrypted_username.nonce,
@@ -204,33 +171,25 @@ class ProviderRepository:
                 password_nonce=encrypted_password.nonce,
                 encryption_key_version=encrypted_password.key_version,
                 user_domain_name=user_domain_name,
-                rotated_at=rotated_at,
-                version=Credential.version + 1,
+                credential_rotated_at=rotated_at,
+                version=Provider.version + 1,
             )
         )
         if not isinstance(result, CursorResult) or result.rowcount != 1:
-            credential = await self.get_credential(credential_id)
+            credential = await self.get_provider(provider_id)
             if credential is None:
-                raise ProviderPersistenceError("credential not found")
+                raise ProviderPersistenceError("provider not found")
             raise ProviderVersionConflictError
         await self._session.flush()
-        credential = await self.get_credential(credential_id)
+        credential = await self.get_provider(provider_id)
         if credential is None:
-            raise ProviderPersistenceError("credential not found")
+            raise ProviderPersistenceError("provider not found")
         return credential
-
-    async def delete_credential(self, credential_id: uuid.UUID) -> None:
-        credential = await self.get_credential(credential_id)
-        if credential is None:
-            raise ProviderPersistenceError("credential not found")
-        await self._session.delete(credential)
-        await _flush_or_raise(self._session)
 
     async def add_connection(self, command: AddConnectionCommand) -> ProviderConnection:
         connection = ProviderConnection(
             id=command.connection_id,
             provider_id=command.provider_id,
-            credential_id=command.credential_id,
             scope_kind=command.scope_kind,
             scope_domain_provider_resource_id=command.scope_domain_provider_resource_id,
             scope_project_provider_resource_id=command.scope_project_provider_resource_id,
@@ -254,11 +213,10 @@ class ProviderRepository:
 
     async def get_provider_aggregate(
         self, provider_id: uuid.UUID
-    ) -> tuple[Provider, ProviderConnection, Credential] | None:
+    ) -> tuple[Provider, ProviderConnection] | None:
         result = await self._session.execute(
-            select(ProviderConnection, Provider, Credential)
+            select(ProviderConnection, Provider)
             .join(Provider, Provider.id == ProviderConnection.provider_id)
-            .join(Credential, Credential.id == ProviderConnection.credential_id)
             .where(
                 ProviderConnection.provider_id == provider_id,
                 ProviderConnection.scope_kind == ConnectionScopeKind.SYSTEM,
@@ -268,24 +226,23 @@ class ProviderRepository:
         )
         row = result.one_or_none()
         if row is not None:
-            return row[1], row[0], row[2]
+            return row[1], row[0]
         return await self._get_legacy_single_connection_aggregate(provider_id)
 
     async def _get_legacy_single_connection_aggregate(
         self, provider_id: uuid.UUID
-    ) -> tuple[Provider, ProviderConnection, Credential] | None:
+    ) -> tuple[Provider, ProviderConnection] | None:
         result = await self._session.execute(
-            select(ProviderConnection, Provider, Credential)
+            select(ProviderConnection, Provider)
             .join(Provider, Provider.id == ProviderConnection.provider_id)
-            .join(Credential, Credential.id == ProviderConnection.credential_id)
             .where(ProviderConnection.provider_id == provider_id)
             .order_by(ProviderConnection.created_at.asc(), ProviderConnection.id.asc())
         )
         rows = result.all()
         if len(rows) != 1:
             return None
-        connection, provider, credential = rows[0]
-        return provider, connection, credential
+        connection, provider = rows[0]
+        return provider, connection
 
     async def provider_name_exists(self, name: str, *, exclude_id: uuid.UUID | None = None) -> bool:
         query = select(func.count()).select_from(Provider).where(Provider.name == name)
@@ -388,12 +345,6 @@ class ProviderRepository:
             raise ProviderPersistenceError("provider not found")
         return refreshed
 
-    async def get_credential(self, credential_id: uuid.UUID) -> Credential | None:
-        result = await self._session.execute(
-            select(Credential).where(Credential.id == credential_id)
-        )
-        return result.scalar_one_or_none()
-
     async def get_connection(self, connection_id: uuid.UUID) -> ProviderConnection | None:
         result = await self._session.execute(
             select(ProviderConnection).where(ProviderConnection.id == connection_id)
@@ -429,20 +380,18 @@ class ProviderRepository:
         total = await self._session.scalar(count_query)
         return list(result.scalars().all()), int(total or 0)
 
-    async def get_connection_credential(
-        self, connection_id: uuid.UUID, credential_id: uuid.UUID
-    ) -> tuple[ProviderConnection, Provider, Credential] | None:
+    async def get_connection_provider(
+        self, connection_id: uuid.UUID
+    ) -> tuple[ProviderConnection, Provider] | None:
         result = await self._session.execute(
-            select(ProviderConnection, Provider, Credential)
+            select(ProviderConnection, Provider)
             .join(Provider, Provider.id == ProviderConnection.provider_id)
-            .join(Credential, Credential.id == ProviderConnection.credential_id)
             .where(
                 ProviderConnection.id == connection_id,
-                ProviderConnection.credential_id == credential_id,
             )
         )
         row = result.one_or_none()
-        return row if row is None else (row[0], row[1], row[2])
+        return row if row is None else (row[0], row[1])
 
     async def update_connection(
         self, connection_id: uuid.UUID, *, expected_version: int, values: dict[str, object]

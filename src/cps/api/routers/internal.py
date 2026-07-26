@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 
 from cps.api.dependencies import get_uow
 from cps.application.resolver import CredentialResolver
@@ -19,14 +19,13 @@ async def internal_boundary() -> None:
 
 
 @router.get(
-    "/internal/v1/credentials/{credential_reference}",
+    "/internal/v1/connections/{provider_connection_id}/resolution",
     response_model=CredentialResolution,
     response_model_exclude={"schema_version"},
     dependencies=[Depends(internal_boundary)],
 )
-async def resolve_credential(
-    credential_reference: uuid.UUID,
-    provider_connection_id: uuid.UUID = Query(...),  # noqa: B008
+async def resolve_connection(
+    provider_connection_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> CredentialResolution:
     cipher = uow.session.info["credential_cipher"]
@@ -34,9 +33,7 @@ async def resolve_credential(
         from cps.contracts.errors import CredentialKeyUnavailableError
 
         raise CredentialKeyUnavailableError
-    return await CredentialResolver(uow.providers, cipher).resolve(
-        credential_reference, provider_connection_id
-    )
+    return await CredentialResolver(uow.providers, cipher).resolve(provider_connection_id)
 
 
 @router.get(

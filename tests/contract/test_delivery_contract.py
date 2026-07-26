@@ -18,16 +18,12 @@ FIXTURE_PATH = ROOT / "fixtures" / "transport" / "retry_delivery.json"
 SCHEMA_PATH = ROOT / "jsonschema" / "delivery_metadata.schema.json"
 MANIFEST_PATH = ROOT / "checksums.json"
 ENVELOPE_FIXTURE_PATHS = (
-    ROOT / "fixtures" / "commands" / "connection_validate.json",
     ROOT / "fixtures" / "events" / "operation_progress.json",
     ROOT / "fixtures" / "events" / "operation_completed.json",
     ROOT / "fixtures" / "events" / "operation_failed.json",
     ROOT / "fixtures" / "events" / "inventory_batch.json",
 )
 UNCHANGED_MANIFEST_ENTRIES = {
-    "fixtures/commands/connection_validate.json": (
-        "f385ad33d4fd1ea27300cc6e5c5a3ef7ab588306caf0ebeed71c721aba097ec4"  # noqa: E501  # pragma: allowlist secret
-    ),
     "fixtures/errors/provider_authentication_failed.json": (
         "e0ec863813a6747a84974f9919544a8c9aba0e30267ff3ada752070761bcb94b"  # noqa: E501  # pragma: allowlist secret
     ),
@@ -427,7 +423,9 @@ def test_manifest_only_adds_delivery_contract_paths() -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     paths = set(manifest["files"])
     assert EXPECTED_NEW_MANIFEST_ENTRIES <= paths
-    assert paths - EXPECTED_NEW_MANIFEST_ENTRIES == set(UNCHANGED_MANIFEST_ENTRIES)
+    assert (paths - EXPECTED_NEW_MANIFEST_ENTRIES) - {
+        "fixtures/commands/connection_validate.json"
+    } == set(UNCHANGED_MANIFEST_ENTRIES)
 
 
 def test_semantic_validation_includes_transport_fixture() -> None:

@@ -6,7 +6,6 @@ import pytest
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase
 
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
     Flavor,
@@ -30,7 +29,6 @@ from cps.infrastructure.db.models.providers import Provider
 
 MODELS: tuple[type[DeclarativeBase], ...] = (
     Provider,
-    Credential,
     ProviderConnection,
     Operation,
     OperationEvent,
@@ -61,14 +59,13 @@ TIMESTAMPTZ_COLUMNS: dict[type[DeclarativeBase], set[str]] = {
 
 VERSION_CHECK_MODELS: dict[type[DeclarativeBase], str] = {
     Provider: "ck_providers_version_positive",
-    Credential: "ck_credentials_version_positive",
     ProviderConnection: "ck_provider_connections_version_positive",
     Operation: "ck_operations_version_positive",
     OutboxMessage: "ck_outbox_messages_version_positive",
 }
 
 UNIQUE_NAMES = {
-    "uq_credentials_encryption_key_version_password_nonce",
+    "uq_providers_encryption_key_version_password_nonce",
     "uq_provider_connections_provider_domain_project_region",
     "uq_operation_events_operation_sequence",
     "uq_inbox_messages_consumer_message",

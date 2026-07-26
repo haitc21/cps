@@ -50,10 +50,6 @@ class ProviderConnection(Base, TimestampMixin, VersionMixin):
         ForeignKey("providers.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    credential_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("credentials.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
     scope_kind: Mapped[ConnectionScopeKind] = mapped_column(
         Enum(ConnectionScopeKind, name="connection_scope_kind", native_enum=True),

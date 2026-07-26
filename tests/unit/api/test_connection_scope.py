@@ -11,7 +11,6 @@ from cps.infrastructure.db.models.enums import ConnectionScopeKind, ConnectionSt
 
 def _create(**kwargs):
     values = {
-        "credential_id": uuid4(),
         "auth_url": "https://keystone.example/v3",
         "project_name": "demo",
         "region_name": "RegionOne",

@@ -89,11 +89,6 @@ class ProviderNotFoundError(ResourceNotFoundError):
     default_public_message = "Provider not found"
 
 
-class CredentialNotFoundError(ResourceNotFoundError):
-    code = "CREDENTIAL_NOT_FOUND"
-    default_public_message = "Credential not found"
-
-
 class VersionConflictError(DomainConflictError):
     code = "VERSION_CONFLICT"
     default_public_message = "Provider version conflict"
@@ -102,11 +97,6 @@ class VersionConflictError(DomainConflictError):
 class ProviderNameConflictError(DomainConflictError):
     code = "PROVIDER_NAME_CONFLICT"
     default_public_message = "Provider name already exists"
-
-
-class CredentialInUseError(DomainConflictError):
-    code = "RESOURCE_IN_USE"
-    default_public_message = "Credential is referenced by a provider connection"
 
 
 class CredentialKeyUnavailableError(DomainError):

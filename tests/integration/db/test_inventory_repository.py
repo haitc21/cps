@@ -9,7 +9,6 @@ from sqlalchemy import select
 
 from cps.contracts.messages.inventory import InventoryBatchPayload, compute_inventory_checksum
 from cps.identifiers import new_uuid7
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import ConnectionStatus, OperationState
 from cps.infrastructure.db.models.inventory import Instance
 from cps.infrastructure.db.models.operations import Operation
@@ -49,13 +48,12 @@ def _payload(sync_id: uuid.UUID, *, name: str = "server") -> InventoryBatchPaylo
 
 async def _seed_connection(uow: SqlAlchemyUnitOfWork) -> tuple[uuid.UUID, uuid.UUID]:
     provider_id = new_uuid7()
-    credential_id = new_uuid7()
     connection_id = new_uuid7()
     operation_id = new_uuid7()
-    uow.session.add(Provider(id=provider_id, name=f"provider-{provider_id}"))
     uow.session.add(
-        Credential(
-            id=credential_id,
+        Provider(
+            id=provider_id,
+            name=f"provider-{provider_id}",
             username_ciphertext=b"u",
             username_nonce=b"u" * 12,
             password_ciphertext=b"p",
@@ -68,7 +66,6 @@ async def _seed_connection(uow: SqlAlchemyUnitOfWork) -> tuple[uuid.UUID, uuid.U
         ProviderConnection(
             id=connection_id,
             provider_id=provider_id,
-            credential_id=credential_id,
             project_name="demo",
             region_name="RegionOne",
             auth_url="https://keystone.example/v3",

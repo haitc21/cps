@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.identity_bindings import IdentityBinding
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
@@ -34,7 +33,6 @@ from cps.infrastructure.db.models.provider_connections import ProviderConnection
 from cps.infrastructure.db.models.providers import Provider
 
 __all__ = [
-    "Credential",
     "InboxMessage",
     "Region",
     "IdentityDomain",

@@ -120,7 +120,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "trace_context": {},
                 "payload": request_payload,
             }
@@ -192,7 +191,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": request_payload,
             }
         )
@@ -279,7 +277,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": request_payload,
             }
         )
@@ -375,7 +372,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": request_payload,
             }
         )
@@ -469,7 +465,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": request_payload,
             }
         )
@@ -628,7 +623,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": payload,
             }
         )
@@ -737,7 +731,6 @@ class OperationApplicationService:
                 "idempotency_key": idempotency_key,
                 "provider_id": connection.provider_id,
                 "provider_connection_id": connection.id,
-                "credential_reference": connection.credential_id,
                 "payload": payload,
             }
         )

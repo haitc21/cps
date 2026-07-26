@@ -11,7 +11,6 @@ from cps.infrastructure.db.repositories.inventory import (
 from cps.infrastructure.db.repositories.operations import OperationRepository
 from cps.infrastructure.db.repositories.providers import (
     AddConnectionCommand,
-    AddCredentialCommand,
     AddProviderCommand,
     DuplicateProviderConnectionError,
     ProviderPersistenceError,
@@ -20,7 +19,6 @@ from cps.infrastructure.db.repositories.providers import (
 
 __all__ = [
     "AddConnectionCommand",
-    "AddCredentialCommand",
     "AddProviderCommand",
     "DuplicateProviderConnectionError",
     "OperationRepository",

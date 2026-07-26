@@ -12,7 +12,6 @@ from cps.infrastructure.db.models.enums import ConnectionScopeKind, ConnectionSt
 
 class ConnectionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    credential_id: uuid.UUID
     scope_kind: ConnectionScopeKind = ConnectionScopeKind.PROJECT
     scope_domain_provider_resource_id: str | None = Field(
         default=None, min_length=1, max_length=255
@@ -48,7 +47,6 @@ class ConnectionCreate(BaseModel):
 class ConnectionPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
     expected_version: int = Field(ge=1)
-    credential_id: uuid.UUID | None = None
     scope_kind: ConnectionScopeKind | None = None
     scope_domain_provider_resource_id: str | None = Field(
         default=None, min_length=1, max_length=255

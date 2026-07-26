@@ -17,9 +17,7 @@ from cps.infrastructure.db.models.operations import Operation
 from cps.infrastructure.db.models.providers import Provider
 from cps.infrastructure.db.repositories.operations import IdempotencyScopeConflictError
 from cps.infrastructure.db.repositories.providers import (
-    AddConnectionCommand,
-    AddCredentialCommand,
-    AddProviderCommand,
+    AddProviderAggregateCommand,
 )
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.security.credentials import AesGcmCredentialCipher, MappingCredentialKeyProvider
@@ -46,40 +44,31 @@ async def _seed_connection(
     cipher: AesGcmCredentialCipher,
 ) -> tuple[uuid.UUID, uuid.UUID]:
     provider_id = new_uuid7()
-    credential_id = new_uuid7()
     connection_id = new_uuid7()
     encrypted = cipher.encrypt_password(
-        credential_id=credential_id,
+        credential_id=provider_id,
         plaintext=_PLAINTEXT,
         key_version=_KEY_VERSION,
     )
 
     uow = SqlAlchemyUnitOfWork(db_session_factory)
     async with uow:
-        await uow.providers.add_provider(
-            AddProviderCommand(provider_id=provider_id, name="provider-idempotency")
-        )
-        await uow.providers.add_credential(
-            AddCredentialCommand(
-                credential_id=credential_id,
-                username="service-user",
-                encrypted_password=encrypted,
+        await uow.providers.add_provider_aggregate(
+            AddProviderAggregateCommand(
+                provider_id=provider_id,
+                connection_id=connection_id,
+                name="provider-idempotency",
                 encrypted_username=cipher.encrypt_secret(
-                    credential_id=credential_id,
+                    credential_id=provider_id,
                     field_label="username",
                     plaintext="service-user",
                     key_version=_KEY_VERSION,
                 ),
-            )
-        )
-        await uow.providers.add_connection(
-            AddConnectionCommand(
-                connection_id=connection_id,
-                provider_id=provider_id,
-                credential_id=credential_id,
-                project_name="demo",
-                region_name="RegionOne",
+                encrypted_password=encrypted,
+                user_domain_name="Default",
                 auth_url="https://keystone.example/v3",
+                region_name="RegionOne",
+                project_name="demo",
             )
         )
         await uow.commit()

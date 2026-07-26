@@ -71,6 +71,15 @@ class InventoryResourceMixin(TimestampMixin, VersionMixin):
         )
 
 
+class ProjectOwnershipMixin:
+    """Optional OpenStack project owner for tenant-scoped resources."""
+
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
+    )
+    project_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Region(Base, InventoryResourceMixin):
     __tablename__ = "regions"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
@@ -88,6 +97,14 @@ class IdentityDomain(Base, InventoryResourceMixin):
 class Project(Base, InventoryResourceMixin):
     __tablename__ = "projects"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("providers.id", ondelete="RESTRICT"), nullable=False
+    )
+    org_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workspace_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ownership_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="UNBOUND"
+    )
     domain_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     domain_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner_domain_provider_resource_id: Mapped[str | None] = mapped_column(
@@ -112,7 +129,7 @@ class RoleAssignment(Base, InventoryResourceMixin):
     inherited: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
 
 
-class Quota(Base, InventoryResourceMixin):
+class Quota(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     """A service quota snapshot. ``-1`` is represented by ``unlimited``."""
 
     __tablename__ = "quotas"
@@ -136,7 +153,7 @@ class Flavor(Base, InventoryResourceMixin):
     enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
-class Image(Base, InventoryResourceMixin):
+class Image(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "images"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     visibility: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -147,7 +164,7 @@ class Image(Base, InventoryResourceMixin):
     checksum: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
-class Instance(Base, InventoryResourceMixin):
+class Instance(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "instances"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     power_state: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -163,7 +180,7 @@ class Instance(Base, InventoryResourceMixin):
     terminated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class Network(Base, InventoryResourceMixin):
+class Network(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "networks"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     admin_state_up: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -172,7 +189,7 @@ class Network(Base, InventoryResourceMixin):
     mtu: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
-class Subnet(Base, InventoryResourceMixin):
+class Subnet(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "subnets"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     network_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -184,7 +201,7 @@ class Subnet(Base, InventoryResourceMixin):
     allocation_pools: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="[]")
 
 
-class Port(Base, InventoryResourceMixin):
+class Port(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "ports"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     network_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -198,7 +215,7 @@ class Port(Base, InventoryResourceMixin):
     )
 
 
-class Router(Base, InventoryResourceMixin):
+class Router(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "routers"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     admin_state_up: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -221,13 +238,13 @@ class RouterInterface(Base):
     port_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
-class SecurityGroup(Base, InventoryResourceMixin):
+class SecurityGroup(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "security_groups"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     stateful: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
-class SecurityGroupRule(Base, InventoryResourceMixin):
+class SecurityGroupRule(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "security_group_rules"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     security_group_provider_resource_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -242,7 +259,7 @@ class SecurityGroupRule(Base, InventoryResourceMixin):
     )
 
 
-class FloatingIP(Base, InventoryResourceMixin):
+class FloatingIP(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "floating_ips"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     floating_network_provider_resource_id: Mapped[str | None] = mapped_column(
@@ -255,7 +272,7 @@ class FloatingIP(Base, InventoryResourceMixin):
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
-class Volume(Base, InventoryResourceMixin):
+class Volume(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "volumes"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     size_gib: Mapped[int | None] = mapped_column(Integer, nullable=True)

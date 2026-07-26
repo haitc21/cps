@@ -7,9 +7,17 @@ from typing import Any
 
 import psycopg
 
-from cps.identifiers import new_uuid7
-
 VALID_NONCE = bytes.fromhex("000000000000000000000000")
+
+
+def insert_credential(
+    conn: psycopg.Connection,
+    *,
+    credential_id: uuid.UUID | None = None,
+    **_kwargs: Any,
+) -> uuid.UUID:
+    """Compatibility seed: credentials are now owned by providers."""
+    return credential_id or uuid.uuid4()
 
 
 def insert_provider(
@@ -22,42 +30,32 @@ def insert_provider(
     with conn.cursor() as cursor:
         cursor.execute(
             """
-            INSERT INTO providers (id, name, provider_type, status, version)
-            VALUES (%s, %s, 'OPENSTACK', 'ACTIVE', %s)
+            INSERT INTO providers (
+                id, name, provider_type, status, version,
+                username_ciphertext, username_nonce, password_ciphertext,
+                password_nonce, encryption_key_version
+            )
+            VALUES (%s, %s, 'OPENSTACK', 'ACTIVE', %s, %s, %s, %s, %s, %s)
             """,
-            (provider_id, f"provider-{provider_id.hex[:8]}", version),
+            (
+                provider_id,
+                f"provider-{provider_id.hex[:8]}",
+                version,
+                b"user-cipher",
+                VALID_NONCE,
+                b"password-cipher",
+                VALID_NONCE,
+                "v1",
+            ),
         )
     return provider_id
-
-
-def insert_credential(
-    conn: psycopg.Connection,
-    *,
-    credential_id: uuid.UUID | None = None,
-    nonce: bytes = VALID_NONCE,
-    key_version: str = "v1",
-    version: int = 1,
-) -> uuid.UUID:
-    credential_id = credential_id or uuid.uuid4()
-    with conn.cursor() as cursor:
-        cursor.execute(
-            """
-            INSERT INTO credentials (
-                id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
-                encryption_key_version, version
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-            (credential_id, b"user-cipher", nonce, b"\x00", nonce, key_version, version),
-        )
-    return credential_id
 
 
 def insert_connection(
     conn: psycopg.Connection,
     *,
     provider_id: uuid.UUID,
-    credential_id: uuid.UUID,
+    credential_id: uuid.UUID | None = None,
     connection_id: uuid.UUID | None = None,
     project_domain_name: str = "Default",
     project_name: str = "demo",
@@ -70,18 +68,17 @@ def insert_connection(
         cursor.execute(
             """
             INSERT INTO provider_connections (
-                id, provider_id, credential_id, project_name, project_domain_name,
+                id, provider_id, project_name, project_domain_name,
                 region_name, auth_url, interface, verify_tls, status, version
             )
             VALUES (
-                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s,
                 'https://keystone.example/v3', %s, true, 'PENDING_VALIDATION', %s
             )
             """,
             (
                 connection_id,
                 provider_id,
-                credential_id,
                 project_name,
                 project_domain_name,
                 region_name,
@@ -132,12 +129,10 @@ def insert_operation(
 
 def seed_operation_graph(conn: psycopg.Connection) -> dict[str, uuid.UUID]:
     provider_id = insert_provider(conn)
-    credential_id = insert_credential(conn, nonce=new_uuid7().bytes[:12])
-    connection_id = insert_connection(conn, provider_id=provider_id, credential_id=credential_id)
+    connection_id = insert_connection(conn, provider_id=provider_id)
     operation_id = insert_operation(conn, connection_id=connection_id)
     return {
         "provider_id": provider_id,
-        "credential_id": credential_id,
         "connection_id": connection_id,
         "operation_id": operation_id,
     }

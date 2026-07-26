@@ -19,7 +19,6 @@ from cps.contracts.errors import (
 from cps.contracts.messages.identity import IdentityOperation, IdentityResourceRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.identifiers import new_uuid7
-from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import ConnectionStatus, ProviderStatus
 from cps.infrastructure.db.models.identity_bindings import IdentityBinding
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
@@ -52,7 +51,7 @@ class IdentityBindingService:
             if existing.provider_resource_name != body.name:
                 raise DomainConflictError("identity domain binding already exists")
             return existing, await self._operation_from_binding(existing)
-        provider, connection, _credential = await self._provider_aggregate(provider_id)
+        provider, connection = await self._provider_aggregate(provider_id)
         binding_id = new_uuid7()
         request = IdentityResourceRequest(
             operation_id=new_uuid7(),
@@ -99,7 +98,7 @@ class IdentityBindingService:
         domain = await self._bindings.get_domain(provider_id, body.org_id)
         if domain is None:
             raise InvalidRequestError("identity domain binding is required first")
-        provider, connection, _credential = await self._provider_aggregate(provider_id)
+        provider, connection = await self._provider_aggregate(provider_id)
         binding_id = new_uuid7()
         request = IdentityResourceRequest(
             operation_id=new_uuid7(),
@@ -134,16 +133,16 @@ class IdentityBindingService:
 
     async def _provider_aggregate(
         self, provider_id: uuid.UUID
-    ) -> tuple[Provider, ProviderConnection, Credential]:
+    ) -> tuple[Provider, ProviderConnection]:
         aggregate = await self._providers.get_provider_aggregate(provider_id)
         if aggregate is None:
             raise ProviderNotFoundError
-        provider, connection, credential = aggregate
+        provider, connection = aggregate[:2]
         if provider.status is not ProviderStatus.ACTIVE:
             raise CapabilityUnsupportedError("provider is disabled")
         if connection.status is not ConnectionStatus.VALID:
             raise CapabilityUnsupportedError("provider connection must be validated")
-        return provider, connection, credential
+        return provider, connection
 
     async def _operation_from_binding(self, binding: IdentityBinding) -> OperationView:
         # Existing idempotent bindings do not need to enqueue a second mutation.
