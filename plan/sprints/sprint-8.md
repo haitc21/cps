@@ -47,10 +47,10 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Provider catalog endpoints are not routable from Compose | OPS | Preflight endpoint reachability and use disposable acceptance only after correction | Open |
+| Provider catalog endpoints are not routable from Compose | OPS | Host routing and provider endpoint preflight are now configured and verified | Resolved |
 | Keystone policy differs for domain/project administration | OPS | Capability-gate every mutation and report explicit reasons | Open |
 | Quota APIs differ by service/version | OPS | Normalize service-specific responses and retain partial outcomes | Open |
-| No domain/system-scoped disposable credential | CPS/OPS | Keep mutation scope-gated until a dedicated credential is provisioned | Open |
+| No domain/system-scoped disposable credential | CPS/OPS | System-scoped admin credential is provisioned in the lab and mutations remain capability-gated | Resolved for current lab |
 
 ## Review evidence
 

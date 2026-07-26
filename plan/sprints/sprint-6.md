@@ -16,7 +16,7 @@ design while closing the highest-risk provider lifecycle and runtime gaps.
 | OPS-602 Delete waiter/convergence | 5 | OPS | CPS operation events | Yes | Done |
 | CPS-603 Production key-ring fail-fast | 3 | CPS | None | No | Done |
 | OPS-603 Recursive mapper sanitization | 5 | OPS | CPS inventory contracts | No | Done |
-| CPS-601 Demo runtime configuration | 3 | CPS + OPS | OPS internal URL | Yes | In progress |
+| CPS-601 Demo runtime configuration | 3 | CPS + OPS | OPS internal URL | Yes | Done |
 | CPS-602/OPS-604 Immutable images | 5 | CPS + OPS | None | No | Done |
 
 ## Delivery gates

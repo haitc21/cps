@@ -1,6 +1,6 @@
 # Sprint 9 — Internal network topology control
 
-**Status:** Implementation complete; internal connectivity acceptance covered by tests  
+**Status:** Complete — physical home-LAN provider-network acceptance verified
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 58 combined points  
 **Sprint Goal:** Create, reconcile, and remove an OpenStack network topology
@@ -18,7 +18,7 @@ that lets computers on the corporate LAN reach a VM.
 | CPS-903 Router/interface lifecycle | 8 | CPS | OPS-903 | Done |
 | CPS-904 Port/security lifecycle | 13 | CPS | OPS-904 | Done |
 | CPS-905 Floating-IP lifecycle | 8 | CPS | OPS-905 | Done |
-| CPS-906 Internal topology acceptance | 8 | CPS/OPS | OPS-901..905 | Accepted by automated tests; live pending |
+| CPS-906 Internal topology acceptance | 8 | CPS/OPS | OPS-901..905 | Done |
 
 ## Delivery tasks
 
@@ -29,7 +29,7 @@ that lets computers on the corporate LAN reach a VM.
 - [x] Implement port, security-group/rule, and floating-IP lifecycle.
 - [x] Pin CPS contracts in OPS and validate checksums.
 - [x] Add dependency, replay, partial-success, and cleanup tests.
-- [ ] Pass internal topology connectivity acceptance (smoke test executed; provider path is not routable).
+- [x] Run physical home-LAN topology connectivity acceptance.
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -44,17 +44,17 @@ that lets computers on the corporate LAN reach a VM.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Provider network path is not routable from host/controller/compute | OPS | Add a bridged external network or provider-network dataplane before repeating the VM smoke test | Blocked |
+| Provider dataplane must remain attached to the physical home bridge after reboot | OPS | Persist NetworkManager `br-home`, libvirt `provider-net` bridge mode, and controller/compute provider NIC attachment | Resolved for current lab |
 | Existing tenant network policy differs by cloud | OPS | Use explicit network/security inputs and normalize policy errors | Open |
 | Neutron relationship operations are eventually consistent | CPS/OPS | Idempotent ensure/remove and bounded retries | Open |
 
 ## Review evidence
 
 - Demo scenario: create network/subnet/port/security resources, attach a VM, allocate/associate a floating or provider-network address, and connect from the corporate LAN.
-- Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `358 passed, 24 skipped`; CPS DB integration `146 passed`; migration `20260724_0008` verified.
+- Test/migration commands and results: CPS `500 passed, 193 skipped`; OPS `372 passed, 24 skipped`; Ruff, mypy, contract validation, and migration checks passed.
 - Contract checksum: network requests map to the pinned generic resource-operation envelope.
-- Internal connectivity result: a live CirrOS VM reached `ACTIVE` on `provider` with `192.168.57.141`, but ping from host, controller, and compute returned `Destination Port Unreachable`; the VM was deleted successfully.
-- Known limitations: the current live environment needs a routable external network/provider bridge and security-group ingress validation before corporate-LAN SSH acceptance can pass.
+- Physical-LAN result: provider network was moved to `br-home` on `enp8s0`, Neutron subnet changed to `192.168.0.0/24`, and a live CirrOS VM received provider IP `192.168.0.240`; host wired/Wi-Fi paths, controller, and compute reached it by ping and TCP/22. The VM, port, and temporary security group were deleted after the test.
+- Runtime evidence: OpenStack provider interfaces on controller and compute are attached to the physical bridge; Nova compute uses the nested-lab-compatible QEMU CPU configuration.
 
 ## Retrospective actions
 
