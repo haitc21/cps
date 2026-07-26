@@ -238,6 +238,27 @@ future migration explicitly reopens them.
 - **Depends on:** CPS-104
 - **Acceptance:** operation/correlation/provider/resource IDs propagate; metrics cover API/operation/sync/messaging; audit projection contains action/target/outcome/context without direct LMS dependency.
 
+## Epic CPS-E13 — VM operation terminal convergence
+
+### CPS-1301 — Persist early provider identity and terminal events
+
+- **Sprint/Priority/Points:** 14 / Must / 5
+- **Depends on:** CPS-402, CPS-502, OPS-1301, OPS-1303
+- **Acceptance:** create progress durably records the Nova server ID before
+  optional enrichment; duplicate progress/completed/failed events are
+  idempotent; terminal history remains immutable; a completed event can be
+  retried independently after progress was accepted.
+
+### CPS-1302 — Reconcile stale VM-create operations
+
+- **Sprint/Priority/Points:** 14 / Must / 8
+- **Depends on:** CPS-1301, CPS-502, OPS-1304
+- **Acceptance:** bounded scheduling sends reconciliation through OPS rather
+  than calling OpenStack; ACTIVE/SHUTOFF converges to SUCCEEDED, ERROR to
+  FAILED, and confirmed absence after the final deadline to TIMED_OUT; restart
+  and concurrent scheduling produce no duplicate VM or conflicting terminal
+  state.
+
 ### CPS-505 — End-to-end recovery acceptance
 
 - **Sprint/Priority/Points:** 5 / Must / 13

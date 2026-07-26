@@ -65,8 +65,9 @@ A story is done when:
 | 11 | Storage and provider catalog control | Volume/snapshot, image, availability-zone, and flavor lifecycle | Storage/catalog operations converge through CPS/OPS |
 | 12 | Expanded control-plane release | Cross-resource drift, recovery, upgrade, and compatibility acceptance | Target OpenStack release matrix and cleanup gates pass |
 | 13 | Provider tenancy and authorization boundary | Provider-owned credential, canonical project ownership, and fail-closed TMS client boundary | Every tenant resource action is ownership-resolved and authorized without modifying TMS/LMS |
+| 14 | VM-create terminal convergence | Early provider identity persistence and stale-operation reconciliation | An ACTIVE Nova server always converges to a deterministic CPS terminal result across timeout, restart, and redelivery |
 
-Sprints 7–13 are forecasts governed by
+Sprints 7–14 are forecasts governed by
 `docs/superpowers/specs/2026-07-24-openstack-resource-control-plane-expansion-design.md`.
 They do not start until the design delta is approved and Sprint Planning
 selects ready stories.
