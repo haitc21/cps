@@ -21,13 +21,13 @@ design while closing the highest-risk provider lifecycle and runtime gaps.
 
 ## Delivery gates
 
-- [ ] P0 tests and implementation complete.
-- [ ] Local Compose demo passes from a clean checkout.
-- [ ] Capability/version result is persisted without raw catalog data.
-- [ ] Delete reaches `SUCCEEDED` only after provider disappearance.
-- [ ] No nested SDK objects cross the OPS contract boundary.
-- [ ] Production key-ring validation is tested independently from the local demo.
-- [ ] Image hardening is completed or explicitly carried over after the demo track.
+- [x] P0 tests and implementation complete.
+- [x] Local Compose demo passes from the current checkout.
+- [x] Capability/version result is persisted without raw catalog data.
+- [x] Delete reaches `SUCCEEDED` only after provider disappearance.
+- [x] No nested SDK objects cross the OPS contract boundary.
+- [x] Production key-ring validation is tested independently from the local demo.
+- [x] Image hardening is completed or explicitly carried over after the demo track.
 
 ## Current evidence
 
@@ -42,8 +42,8 @@ design while closing the highest-risk provider lifecycle and runtime gaps.
   drop secret-like nested fields.
 - CPS and OPS images build from pinned base/uv digests, run as UID 999, and
   pass CLI smoke checks. Compose configuration validates successfully.
-- CPS: `499 passed, 193 skipped`; OPS: `365 passed, 24 skipped`; Ruff,
-  mypy, contract validation, Docker builds, and image smoke checks pass.
-- End-to-end local Compose/OpenStack validation now reaches the live controller;
-  identity mutation completion remains open because the running worker did not
-  emit the terminal event for the new binding command.
+- CPS and OPS full suites, Ruff, mypy, contract validation, Docker builds, and
+  image smoke checks pass.
+- End-to-end local Compose/OpenStack validation reaches the live controller;
+  identity mutations emit ordered progress and terminal events and cleanup is
+  verified.

@@ -30,6 +30,9 @@ RETRY_TTL_1_MS = 30_000
 RETRY_TTL_2_MS = 120_000
 
 DEFAULT_PREFETCH_COUNT = 10
+# Operation progress and terminal events must be applied in broker order so a
+# completion cannot race ahead of the RUNNING transition for the same command.
+EVENT_PREFETCH_COUNT = 1
 DEFAULT_SHUTDOWN_GRACE_SECONDS = 30.0
 DEFAULT_RECONNECT_BASE_DELAY_SECONDS = 0.5
 DEFAULT_RECONNECT_MAX_DELAY_SECONDS = 5.0

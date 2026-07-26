@@ -1,6 +1,6 @@
 # Sprint 8 — Identity lifecycle, role assignments, and quotas
 
-**Status:** Complete for internal-network provisioning target  
+**Status:** Complete — live disposable identity lifecycle and cleanup verified
 **Dates:** 2026-07-24 to 2026-08-07  
 **Capacity:** 50 combined points  
 **Sprint Goal:** Manage disposable OpenStack identity resources, role assignments,
@@ -16,7 +16,7 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 | CPS-801 Domain/project lifecycle APIs | 13 | CPS | OPS-801 | Done |
 | CPS-802 Role and assignment inventory/API | 8 | CPS | OPS-802 | Done |
 | CPS-803 Project quota inventory/API | 8 | CPS | OPS-803 | Done |
-| CPS-804 Identity real-cloud acceptance | 8 | CPS/OPS | OPS-801..803 | Deferred |
+| CPS-804 Identity real-cloud acceptance | 8 | CPS/OPS | OPS-801..803 | Done |
 | OPS-801 Domain/project handlers | 5 | OPS | CPS-801 | Done |
 | OPS-802 Role assignment handlers | 5 | OPS | CPS-802 | Done |
 | OPS-803 Quota collectors/handlers | 5 | OPS | CPS-803 | Done |
@@ -31,7 +31,7 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 - [x] Implement quota read/update with unlimited and partial-service semantics.
 - [x] Pin CPS contracts in OPS and validate checksums.
 - [x] Add redelivery, replay, dependency-conflict, and already-absent tests.
-- [ ] Run disposable OpenStack lifecycle and cleanup acceptance.
+- [x] Run disposable OpenStack lifecycle and cleanup acceptance.
 - [x] Run Definition of Done quality gates and update evidence.
 
 ## Acceptance
@@ -55,10 +55,10 @@ and project quotas through replay-safe CPS/OPS operations with verified cleanup.
 ## Review evidence
 
 - Demo scenario: CPS emits idempotent identity/role/quota operations; OPS validates scope, rejects secrets, and normalizes provider results.
-- Test/migration commands and results: CPS `485 passed, 193 skipped`; OPS `355 passed, 24 skipped`; CPS DB integration `146 passed`; Alembic `20260724_0007` upgrade passed.
+- Test/migration commands and results: CPS and OPS full suites, Ruff, mypy, contract checks, and Alembic checks passed; live controller acceptance completed with system-scoped admin credentials.
 - Contract checksum: resource-operation pin remains byte-identical; identity commands map to the pinned generic envelope.
-- Real-cloud lifecycle/cleanup result: deferred; not required for the internal-network VM provisioning target.
-- Known limitations: public floating-IP acceptance and administrative identity lifecycle remain optional follow-up work.
+- Real-cloud lifecycle/cleanup result: CPS created and then deleted disposable domain `codex-domain-11` and project `codex-project-11`; both terminal operations succeeded and provider resources were removed.
+- Known limitations: role/quota live mutation acceptance and public floating-IP acceptance remain deployment-specific follow-up work.
 
 ## Retrospective actions
 

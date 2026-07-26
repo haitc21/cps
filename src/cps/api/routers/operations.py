@@ -31,6 +31,7 @@ from cps.contracts.messages.identity import (
 )
 from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
+from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 
@@ -61,7 +62,7 @@ async def network_operation(
 
         raise InvalidRequestError("Idempotency-Key is required")
     typed = NetworkOperationRequest(
-        operation_id=uuid.uuid4(), provider_connection_id=connection_id, **body.model_dump()
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
     )
     operation = await _service(uow).create_network_operation(
         connection_id,
@@ -120,7 +121,7 @@ async def identity_lifecycle(
     singular = resource_type[:-1]
     payload = body.model_dump(exclude_none=True)
     typed = IdentityResourceRequest(
-        operation_id=uuid.uuid4(),
+        operation_id=new_uuid7(),
         resource_type=singular,
         operation=IdentityOperation(action),
         required_scope=ScopeKind.DOMAIN if singular == "domain" else ScopeKind.PROJECT,
@@ -144,7 +145,7 @@ async def role_assignment(
 ) -> ValidationAccepted:
     role_payload = body.model_dump(exclude={"scope_kind"})
     typed = RoleAssignmentRequest(
-        operation_id=uuid.uuid4(),
+        operation_id=new_uuid7(),
         provider_connection_id=connection_id,
         required_scope=body.scope_kind,
         **role_payload,
@@ -165,7 +166,7 @@ async def quota_operation(
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> ValidationAccepted:
     typed = QuotaRequest(
-        operation_id=uuid.uuid4(),
+        operation_id=new_uuid7(),
         provider_connection_id=connection_id,
         required_scope=ScopeKind.PROJECT,
         **body.model_dump(),

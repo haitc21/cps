@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from pydantic import BaseModel, Field
 
 from cps.contracts.messages.resource_operations import ScopeKind
@@ -11,6 +13,7 @@ class IdentityLifecycleRequest(BaseModel):
     enabled: bool | None = None
     domain_provider_resource_id: str | None = Field(default=None, max_length=255)
     provider_resource_id: str | None = Field(default=None, max_length=255)
+    binding_id: uuid.UUID | None = None
 
 
 class RoleAssignmentRequestBody(BaseModel):

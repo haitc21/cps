@@ -86,6 +86,7 @@ class CredentialResolver:
                 "username": username,
                 "password": password,
                 "user_domain_name": credential.user_domain_name,
+                "scope_kind": connection.scope_kind.value,
                 "project_name": connection.project_name,
                 "project_domain_name": connection.project_domain_name,
                 "region_name": connection.region_name,

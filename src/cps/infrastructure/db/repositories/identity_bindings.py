@@ -95,3 +95,15 @@ class IdentityBindingRepository:
         binding.version += 1
         await self._session.flush()
         return binding
+
+    async def mark_deleted(self, binding_id: uuid.UUID) -> IdentityBinding | None:
+        binding = await self.get(binding_id)
+        if binding is None:
+            return None
+        binding.status = "DELETED"
+        binding.provider_resource_id = None
+        binding.last_error_code = None
+        binding.last_error_message = None
+        binding.version += 1
+        await self._session.flush()
+        return binding

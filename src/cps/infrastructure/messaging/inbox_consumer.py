@@ -38,8 +38,8 @@ from cps.domain.operations.inbox_handler import OperationInboxHandler, Unsupport
 from cps.infrastructure.db.repositories.inventory import InventorySyncIncompleteError
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.infrastructure.messaging.constants import (
-    DEFAULT_PREFETCH_COUNT,
     DEFAULT_SHUTDOWN_GRACE_SECONDS,
+    EVENT_PREFETCH_COUNT,
     EVENT_ROUTING_KEYS,
     QUEUE_CPS_EVENT,
 )
@@ -127,7 +127,7 @@ class EventInboxConsumer:
 
         self._queue = queue
 
-        await channel.set_qos(prefetch_count=DEFAULT_PREFETCH_COUNT)
+        await channel.set_qos(prefetch_count=EVENT_PREFETCH_COUNT)
 
         self._consumer_tag = await queue.consume(self._on_message, no_ack=False)
 

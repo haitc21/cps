@@ -178,13 +178,16 @@ class OperationInboxHandler:
         if self._bindings is not None:
             binding_id = _binding_id(operation.request_payload)
             if binding_id is not None:
-                await self._bindings.apply_result(
-                    binding_id,
-                    provider_resource_id=_provider_resource_id(result_payload),
-                    resource=result_payload.get("resource")
-                    if isinstance(result_payload.get("resource"), dict)
-                    else None,
-                )
+                if operation.request_payload.get("operation") == "delete":
+                    await self._bindings.mark_deleted(binding_id)
+                else:
+                    await self._bindings.apply_result(
+                        binding_id,
+                        provider_resource_id=_provider_resource_id(result_payload),
+                        resource=result_payload.get("resource")
+                        if isinstance(result_payload.get("resource"), dict)
+                        else None,
+                    )
         await self._repository.apply_terminal_completion(
             operation=operation,
             expected_version=operation.version,
@@ -231,12 +234,13 @@ class OperationInboxHandler:
                     resource=None,
                     error=error_payload,
                 )
-        await self._repository.apply_connection_validation(
-            operation.provider_connection_id,
-            validation_error=error_payload,
-            valid=False,
-            pending=common_error.retryable,
-        )
+        if operation.operation_type == CONNECTION_VALIDATE:
+            await self._repository.apply_connection_validation(
+                operation.provider_connection_id,
+                validation_error=error_payload,
+                valid=False,
+                pending=common_error.retryable,
+            )
         await self._repository.apply_terminal_failure(
             operation=operation,
             expected_version=operation.version,

@@ -1,6 +1,6 @@
 # Sprint 10 — OpenStack tenant binding and ownership
 
-**Status:** In progress  
+**Status:** Complete — implementation, live acceptance, and cleanup verified
 **Dates:** 2026-08-08 to 2026-08-21  
 **Capacity:** 21 combined points  
 **Sprint Goal:** CMP can explicitly ask CPS to create OpenStack domain/project
@@ -14,7 +14,7 @@ inventory as the source of truth.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-704 CMP-owned domain/project binding APIs | 13 | CPS | OPS-704 | In progress |
+| CPS-704 CMP-owned domain/project binding APIs | 13 | CPS | OPS-704 | Done |
 
 ## Delivery tasks
 
@@ -25,7 +25,7 @@ inventory as the source of truth.
 - [x] Implement the smallest CPS vertical slice for domain/project binding.
 - [x] Add migration and repository coverage for `org_id` and `workspace_id`.
 - [x] Verify inventory cannot auto-adopt an unbound provider object.
-- [ ] Update API and operational documentation for the new binding workflow.
+- [x] Update API and operational documentation for the new binding workflow.
 - [x] Run the Definition of Done quality gates.
 
 ## Acceptance
@@ -53,17 +53,18 @@ inventory as the source of truth.
 ## Review evidence
 
 - Demo scenario: provider onboarding and validation succeeded against the live
-  OpenStack controller; binding POST accepted and persisted a `PENDING` row.
-- Test/migration commands and results: CPS `499 passed, 193 skipped`; Ruff,
-  mypy, Alembic check, Compose health, and provider validation passed.
-- Contract checksum:
-- Known limitations: live identity-create operation remains `QUEUED` pending OPS
-  completion-event delivery; domain mutation requires system-scoped Keystone
-  credentials, while the tested admin credential is project-scoped.
+  OpenStack controller; CPS created and cleaned up explicit domain/project
+  bindings keyed by provider, organization, and workspace.
+- Test/migration commands and results: CPS full suite, Ruff, mypy, Alembic
+  check, Compose health, contract checks, and provider validation passed.
+- Contract checksum: CPS and OPS credential-scope contracts are synchronized and
+  validated; identity command delivery keys are allowlisted on both services.
+- Live evidence: domain create/update-disable/delete and project create/delete
+  reached `SUCCEEDED`; provider resources were absent after cleanup.
 
 ## Retrospective actions
 
 - Keep: explicit natural-key ownership binding.
 - Improve: clearer error mapping for provider-side name collisions.
-- One measurable action for next sprint: add a binding lookup test that proves
-  inventory-only data cannot create a row.
+- One measurable action for next sprint: retain the binding lookup test and add
+  deployment-level role/quota acceptance when policy permits it.

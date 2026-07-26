@@ -147,17 +147,21 @@ class IdentityBindingService:
 
     async def _operation_from_binding(self, binding: IdentityBinding) -> OperationView:
         # Existing idempotent bindings do not need to enqueue a second mutation.
+        pending = binding.status == "PENDING"
+        failed = binding.status == "FAILED"
         return OperationView.model_validate(
             {
                 "id": binding.operation_id or new_uuid7(),
                 "provider_connection_id": binding.provider_connection_id,
                 "operation_type": "identity.binding.ensure",
-                "state": "SUCCEEDED",
-                "progress_percent": 100,
+                "state": "QUEUED" if pending else "FAILED" if failed else "SUCCEEDED",
+                "progress_percent": 0 if pending else 100,
                 "idempotency_key": None,
                 "request_payload": {},
-                "result_payload": {"binding_id": str(binding.id)},
-                "error_payload": None,
+                "result_payload": None if pending or failed else {"binding_id": str(binding.id)},
+                "error_payload": (
+                    {"code": binding.last_error_code or "PROVIDER_ERROR"} if failed else None
+                ),
                 "correlation_id": new_uuid7(),
                 "causation_id": None,
                 "actor_context": None,

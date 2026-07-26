@@ -104,3 +104,21 @@ async def test_domain_binding_carries_explicit_owner_and_binding_id() -> None:
     assert request.org_id == "org-1"
     assert request.binding_id == binding.id
     assert operation.id == binding.operation_id
+
+
+@pytest.mark.asyncio
+async def test_pending_binding_replay_does_not_report_success() -> None:
+    providers = _Providers()
+    binding = SimpleNamespace(
+        id=uuid.uuid4(),
+        provider_connection_id=providers.connection_id,
+        operation_id=uuid.uuid4(),
+        status="PENDING",
+        last_error_code=None,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    service = IdentityBindingService(providers, _Bindings(domain=binding), _Operations())
+    operation = await service._operation_from_binding(binding)
+    assert operation.state == "QUEUED"
+    assert operation.result_payload is None

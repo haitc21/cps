@@ -550,6 +550,8 @@ class OperationApplicationService:
                 }.items()
                 if value is not None
             }
+            if request.operation is IdentityOperation.DISABLE:
+                parameters["enabled"] = False
             payload = {
                 "operation_id": str(request.operation_id),
                 "resource_type": request.resource_type,
