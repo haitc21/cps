@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.schemas.bindings import (
+    IdentityBindingAccepted,
+    IdentityBindingView,
+    IdentityDomainBindingCreate,
+    IdentityProjectBindingCreate,
+)
 from cps.api.schemas.providers import ProviderCreate, ProviderPage, ProviderPatch, ProviderView
+from cps.application.bindings import IdentityBindingService
+from cps.application.operations import OperationApplicationService
 from cps.application.providers import ProviderService
 from cps.contracts.errors import CredentialKeyUnavailableError
 from cps.infrastructure.db.models.enums import ProviderStatus
@@ -23,6 +31,14 @@ def _service(uow: SqlAlchemyUnitOfWork) -> ProviderService:
         uow.providers,
         cipher=cipher,
         active_key_version=settings.credential_active_key_version,
+    )
+
+
+def _binding_service(uow: SqlAlchemyUnitOfWork) -> IdentityBindingService:
+    return IdentityBindingService(
+        uow.providers,
+        uow.bindings,
+        OperationApplicationService(uow.operations, uow.outbox, uow.inventory),
     )
 
 
@@ -57,6 +73,66 @@ async def list_providers(
         provider_type=provider_type,
         sort=sort,
         order=order,
+    )
+
+
+@router.post(
+    "/{provider_id}/identity-domains",
+    response_model=IdentityBindingAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_identity_domain_binding(
+    provider_id: uuid.UUID,
+    body: IdentityDomainBindingCreate,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> IdentityBindingAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    binding, operation = await _binding_service(uow).create_domain(
+        provider_id,
+        body,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+    )
+    await uow.commit()
+    return IdentityBindingAccepted(
+        binding=IdentityBindingView.model_validate(binding, from_attributes=True),
+        operation=operation,
+        status_url=f"/api/v1/operations/{operation.id}",
+    )
+
+
+@router.post(
+    "/{provider_id}/identity-projects",
+    response_model=IdentityBindingAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def create_identity_project_binding(
+    provider_id: uuid.UUID,
+    body: IdentityProjectBindingCreate,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> IdentityBindingAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    binding, operation = await _binding_service(uow).create_project(
+        provider_id,
+        body,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+    )
+    await uow.commit()
+    return IdentityBindingAccepted(
+        binding=IdentityBindingView.model_validate(binding, from_attributes=True),
+        operation=operation,
+        status_url=f"/api/v1/operations/{operation.id}",
     )
 
 

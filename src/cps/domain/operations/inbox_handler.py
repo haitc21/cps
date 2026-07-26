@@ -33,6 +33,7 @@ from cps.domain.operations.states import TERMINAL_STATES
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.models.operations import Operation
+from cps.infrastructure.db.repositories.identity_bindings import IdentityBindingRepository
 from cps.infrastructure.db.repositories.operations import OperationRepository
 
 SUPPORTED_EVENT_TYPES = frozenset(
@@ -51,8 +52,13 @@ class UnsupportedEventTypeError(ValueError):
 class OperationInboxHandler:
     """Domain handler for cloud operation events from OPS."""
 
-    def __init__(self, repository: OperationRepository) -> None:
+    def __init__(
+        self,
+        repository: OperationRepository,
+        bindings: IdentityBindingRepository | None = None,
+    ) -> None:
         self._repository = repository
+        self._bindings = bindings
         self._service = OperationService(repository)
 
     async def handle(self, envelope: MessageEnvelope) -> None:
@@ -169,6 +175,16 @@ class OperationInboxHandler:
                 capabilities=capabilities.model_dump(mode="json"),
                 valid=True,
             )
+        if self._bindings is not None:
+            binding_id = _binding_id(operation.request_payload)
+            if binding_id is not None:
+                await self._bindings.apply_result(
+                    binding_id,
+                    provider_resource_id=_provider_resource_id(result_payload),
+                    resource=result_payload.get("resource")
+                    if isinstance(result_payload.get("resource"), dict)
+                    else None,
+                )
         await self._repository.apply_terminal_completion(
             operation=operation,
             expected_version=operation.version,
@@ -206,6 +222,15 @@ class OperationInboxHandler:
             return
         to_state = OperationState.FAILED
         validate_transition_target(operation.state, to_state)
+        if self._bindings is not None:
+            binding_id = _binding_id(operation.request_payload)
+            if binding_id is not None:
+                await self._bindings.apply_result(
+                    binding_id,
+                    provider_resource_id=None,
+                    resource=None,
+                    error=error_payload,
+                )
         await self._repository.apply_connection_validation(
             operation.provider_connection_id,
             validation_error=error_payload,
@@ -245,3 +270,19 @@ def validate_transition_target(from_state: OperationState, to_state: OperationSt
     from cps.domain.operations.transitions import validate_transition
 
     validate_transition(from_state, to_state)
+
+
+def _binding_id(payload: dict[str, Any]) -> uuid.UUID | None:
+    parameters = payload.get("parameters")
+    if not isinstance(parameters, dict):
+        return None
+    raw = parameters.get("binding_id")
+    try:
+        return uuid.UUID(str(raw)) if raw else None
+    except (ValueError, AttributeError):
+        return None
+
+
+def _provider_resource_id(payload: dict[str, Any]) -> str | None:
+    raw = payload.get("provider_resource_id")
+    return str(raw) if raw else None

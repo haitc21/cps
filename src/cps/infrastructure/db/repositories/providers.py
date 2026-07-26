@@ -12,10 +12,6 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cps.application.provider_aggregate import (
-    AGGREGATE_SYSTEM_PROJECT_DOMAIN,
-    AGGREGATE_SYSTEM_PROJECT_NAME,
-)
 from cps.infrastructure.db.models.credentials import Credential
 from cps.infrastructure.db.models.enums import (
     ConnectionScopeKind,
@@ -69,6 +65,8 @@ class AddProviderAggregateCommand:
     user_domain_name: str
     auth_url: str
     region_name: str
+    project_name: str = "admin"
+    project_domain_name: str = "Default"
     interface: str = "public"
     verify_tls: bool = True
     ca_cert_pem: str | None = None
@@ -143,8 +141,8 @@ class ProviderRepository:
             provider_id=command.provider_id,
             credential_id=command.credential_id,
             scope_kind=ConnectionScopeKind.SYSTEM,
-            project_name=AGGREGATE_SYSTEM_PROJECT_NAME,
-            project_domain_name=AGGREGATE_SYSTEM_PROJECT_DOMAIN,
+            project_name=command.project_name,
+            project_domain_name=command.project_domain_name,
             region_name=command.region_name,
             auth_url=command.auth_url,
             interface=command.interface,
@@ -155,6 +153,10 @@ class ProviderRepository:
         )
         self._session.add(provider)
         self._session.add(credential)
+        # These models intentionally keep foreign keys without ORM
+        # relationships; flush the principals before inserting the aggregate
+        # connection so PostgreSQL sees both referenced rows.
+        await _flush_or_raise(self._session)
         self._session.add(connection)
         await _flush_or_raise(self._session)
         return provider

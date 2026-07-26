@@ -30,6 +30,9 @@ class IdentityResourceRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4096)
     enabled: bool | None = None
+    org_id: str | None = Field(default=None, min_length=1, max_length=255)
+    workspace_id: str | None = Field(default=None, min_length=1, max_length=255)
+    binding_id: UUID | None = None
 
     @model_validator(mode="after")
     def validate_resource(self) -> IdentityResourceRequest:
@@ -43,6 +46,22 @@ class IdentityResourceRequest(BaseModel):
             raise ValueError("domain_provider_resource_id is required for project create")
         if self.operation is not IdentityOperation.CREATE and not self.provider_resource_id:
             raise ValueError("provider_resource_id is required for lifecycle operations")
+        if (
+            self.binding_id
+            and self.resource_type == "domain"
+            and self.operation is IdentityOperation.CREATE
+        ):
+            if not self.org_id:
+                raise ValueError("org_id is required for domain create")
+            if self.workspace_id:
+                raise ValueError("workspace_id is not valid for domain create")
+        if (
+            self.binding_id
+            and self.resource_type == "project"
+            and self.operation is IdentityOperation.CREATE
+        ):
+            if not self.org_id or not self.workspace_id:
+                raise ValueError("org_id and workspace_id are required for project create")
         return self
 
 

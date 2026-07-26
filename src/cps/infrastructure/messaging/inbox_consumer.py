@@ -383,7 +383,7 @@ class EventInboxConsumer:
 
             inbox_id = insert_result.inbox_id
 
-            handler = OperationInboxHandler(uow.operations)
+            handler = OperationInboxHandler(uow.operations, uow.bindings)
             if envelope.message_type in {INVENTORY_BATCH, INVENTORY_COMPLETED}:
                 await InventoryInboxHandler(uow.inventory, uow.operations).handle(envelope)
             else:

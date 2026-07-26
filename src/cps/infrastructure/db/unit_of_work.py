@@ -6,6 +6,7 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from cps.infrastructure.db.repositories.identity_bindings import IdentityBindingRepository
 from cps.infrastructure.db.repositories.inbox import InboxRepository
 from cps.infrastructure.db.repositories.inventory import InventoryRepository
 from cps.infrastructure.db.repositories.operations import OperationRepository
@@ -102,6 +103,10 @@ class SqlAlchemyUnitOfWork:
     @property
     def inbox(self) -> InboxRepository:
         return InboxRepository(self.session)
+
+    @property
+    def bindings(self) -> IdentityBindingRepository:
+        return IdentityBindingRepository(self.session)
 
     @property
     def inventory(self) -> InventoryRepository:

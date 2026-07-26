@@ -561,6 +561,12 @@ class OperationApplicationService:
                 "provider_resource_id": request.provider_resource_id,
                 "parameters": parameters,
             }
+            if request.binding_id is not None:
+                parameters["binding_id"] = str(request.binding_id)
+                if request.org_id is not None:
+                    parameters["org_id"] = request.org_id
+                if request.workspace_id is not None:
+                    parameters["workspace_id"] = request.workspace_id
         elif isinstance(request, RoleAssignmentRequest):
             message_type = (
                 IDENTITY_ROLE_ENSURE if request.operation == "ensure" else IDENTITY_ROLE_REVOKE

@@ -19,6 +19,8 @@ class ProviderCreate(BaseModel):
     username: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=1, max_length=4096)
     user_domain_name: str = Field(default="Default", min_length=1, max_length=255)
+    project_name: str = Field(default="admin", min_length=1, max_length=255)
+    project_domain_name: str = Field(default="Default", min_length=1, max_length=255)
     region_name: str = Field(min_length=1, max_length=255)
     interface: str = Field(default="public", pattern="^(public|internal|admin)$")
     verify_tls: bool = True

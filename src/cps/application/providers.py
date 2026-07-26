@@ -108,6 +108,8 @@ class ProviderService:
                 encrypted_username=encrypted_username,
                 encrypted_password=encrypted_password,
                 user_domain_name=command.user_domain_name,
+                project_name=command.project_name,
+                project_domain_name=command.project_domain_name,
                 auth_url=command.auth_url,
                 region_name=command.region_name,
                 interface=command.interface,
