@@ -20,6 +20,8 @@ COPY --from=uv /uv /uvx /usr/local/bin/
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 RUN uv sync --frozen --no-dev \
     && python -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version" \
