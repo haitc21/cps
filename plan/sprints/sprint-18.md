@@ -1,6 +1,6 @@
 # Sprint 18 — CMP user resource release
 
-**Status:** Proposed — depends on Sprints 15–17
+**Status:** In progress
 **Dates:** TBD at Sprint Planning
 **Capacity:** 21 CPS points
 **Sprint Goal:** The complete CMP user resource workflow is releasable across
@@ -12,15 +12,15 @@ authorization, migration, restart, redelivery, provider drift, and cleanup.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1801 Cross-resource convergence and recovery | 13 | CPS | OPS-1801 | Blocked by Sprints 15–17 |
-| CPS-1802 Migration, runbook, and real-cloud release acceptance | 8 | CPS/OPS | OPS-1802 | Blocked |
+| CPS-1801 Cross-resource convergence and recovery | 13 | CPS | OPS-1801 | In progress |
+| CPS-1802 Migration, runbook, and real-cloud release acceptance | 8 | CPS/OPS | OPS-1802 | In progress — gate preparation |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1801](../tasks/sprint-18/CPS-1801-convergence-recovery.md) | Failure matrix and cross-resource reconciliation | CPS-E15..E17 | Blocked |
-| [CPS-1802](../tasks/sprint-18/CPS-1802-release-acceptance.md) | Migration, operations, compatibility, E2E, cleanup | CPS-1801 | Blocked |
+| [CPS-1801](../tasks/sprint-18/CPS-1801-convergence-recovery.md) | Failure matrix and cross-resource reconciliation | CPS-E15..E17 | In progress |
+| [CPS-1802](../tasks/sprint-18/CPS-1802-release-acceptance.md) | Migration, operations, compatibility, E2E, cleanup | CPS-1801 | In progress |
 
 ## Execution sequence
 
@@ -54,3 +54,5 @@ authorization, migration, restart, redelivery, provider drift, and cleanup.
 - Migration lifecycle:
 - Failure matrix:
 - Real-cloud cleanup ledger:
+- Runbook: `docs/runbooks/sprint-18-release.md` added; acceptance evidence is
+  pending the recovery matrix and final disposable run.

@@ -1,6 +1,6 @@
 # CPS-1801 — Cross-resource convergence and recovery
 
-**Status:** Blocked by CPS-E15..E17
+**Status:** In progress
 **Points:** 13
 **Paired task:** OPS-1801
 
@@ -8,6 +8,10 @@
 
 Every new user-resource workflow has deterministic behavior under duplicate,
 restart, timeout, partial mutation, and direct provider drift.
+
+The Sprint 18 release matrix excludes the deferred console feature and covers
+all currently delivered storage, identity, instance, catalog, and network
+flows.
 
 ## Failure matrix
 
@@ -25,4 +29,3 @@ restart, timeout, partial mutation, and direct provider drift.
 Automated evidence covers volume, attachment, snapshot, keypair, resize,
 rebuild, console boundary, catalog policy, and network guardrails without
 unsafe inferred deletion.
-

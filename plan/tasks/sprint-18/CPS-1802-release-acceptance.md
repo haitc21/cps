@@ -1,12 +1,16 @@
 # CPS-1802 — Migration, runbook, and real-cloud release acceptance
 
-**Status:** Blocked by CPS-1801
+**Status:** In progress — release gate preparation
 **Points:** 8
 **Paired task:** OPS-1802
 
 ## Outcome
 
 The CMP user resource increment is operationally releasable.
+
+The operational procedure is pinned in
+`docs/runbooks/sprint-18-release.md`; final release status depends on the
+CPS-1801 recovery matrix and disposable real-cloud run.
 
 ## Required gates
 
