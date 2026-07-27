@@ -399,6 +399,12 @@ future migration explicitly reopens them.
 
 ## Epic CPS-E10 — Storage, image, and compute catalog control
 
+Planning note: the user-facing portion of this forecast is superseded by
+CPS-E15..E18. Glance public images, Nova flavors, availability zones, volume
+types, and external/provider networks are admin-curated catalogs. CMP users may
+select approved entries but do not mutate those catalogs. Private image upload
+or import requires a separately approved security and data-plane design.
+
 ### CPS-1001 — Volume type and snapshot inventory
 
 - **Sprint/Priority/Points:** 10 / Must / 13
@@ -506,3 +512,126 @@ future migration explicitly reopens them.
   strict external authorization port once per business action, persists only
   safe decision metadata, rejects deny/unavailable/expired decisions, and uses
   a deterministic stub without modifying TMS/LMS.
+
+## Epic CPS-E15 — CMP user block-storage lifecycle
+
+### CPS-1501 — Project-owned volume inventory and API
+
+- **Sprint/Priority/Points:** 15 / Must / 8
+- **Depends on:** CPS-1202, CPS-1203
+- **Coordinates with:** OPS-1501
+- **Acceptance:** volume ownership, type reference, bootability, attachment
+  summary, status, size, metadata, full sync, targeted refresh, query, and
+  tombstone behavior are typed and tenant-isolated.
+
+### CPS-1502 — Volume create/update/extend/delete
+
+- **Sprint/Priority/Points:** 15 / Must / 8
+- **Depends on:** CPS-1501
+- **Coordinates with:** OPS-1502
+- **Acceptance:** workspace users create, rename, update safe metadata, extend,
+  and delete non-root unattached volumes through durable replay-safe
+  operations; size never decreases and attached/root volumes fail safely.
+
+### CPS-1503 — Volume attach/detach
+
+- **Sprint/Priority/Points:** 15 / Must / 8
+- **Depends on:** CPS-1501, CPS-403
+- **Coordinates with:** OPS-1503
+- **Acceptance:** instance and volume ownership/state are checked in CPS and
+  OPS; duplicate attach/detach converges; multiattach is capability-gated; the
+  final attachment relationship is inventoried.
+
+### CPS-1504 — Storage vertical acceptance
+
+- **Sprint/Priority/Points:** 15 / Must / 5
+- **Depends on:** CPS-1501..1503 and OPS-1501..1503
+- **Acceptance:** a disposable volume passes create, attach, detach, extend,
+  delete, restart/redelivery, targeted refresh, and verified cleanup.
+
+## Epic CPS-E16 — CMP user snapshots and SSH access
+
+### CPS-1601 — Volume snapshot lifecycle
+
+- **Sprint/Priority/Points:** 16 / Must / 8
+- **Depends on:** CPS-1501..1503
+- **Coordinates with:** OPS-1601
+- **Acceptance:** project-owned snapshots support inventory, create, rename,
+  delete, bounded waiters, replay, dependency checks, and tombstones; restore
+  is represented as creating a new volume from a snapshot.
+
+### CPS-1602 — Project-owned keypair lifecycle
+
+- **Sprint/Priority/Points:** 16 / Must / 8
+- **Depends on:** CPS-1202, CPS-1203
+- **Coordinates with:** OPS-1602
+- **Acceptance:** users list, import a public key, and delete their project
+  keypairs; CPS stores fingerprints/public material only; private key material
+  is never accepted, persisted, logged, or returned.
+
+### CPS-1603 — Snapshot/keypair acceptance
+
+- **Sprint/Priority/Points:** 16 / Must / 5
+- **Depends on:** CPS-1601..1602 and OPS-1601..1602
+- **Acceptance:** a snapshot creates a new volume and a user-imported keypair
+  boots an SSH-accessible disposable VM; cross-project access and cleanup are
+  verified.
+
+## Epic CPS-E17 — Advanced VM lifecycle and governed catalogs
+
+### CPS-1701 — Instance resize and rebuild
+
+- **Sprint/Priority/Points:** 17 / Must / 13
+- **Depends on:** CPS-403, CPS-1202, CPS-1203
+- **Coordinates with:** OPS-1701
+- **Acceptance:** resize includes confirm/revert convergence; rebuild uses only
+  an approved image and preserves explicit network/volume policy; invalid
+  states and ownership mismatches return stable conflicts.
+
+### CPS-1702 — Instance console and recovery actions
+
+- **Sprint/Priority/Points:** 17 / Should / 5
+- **Depends on:** CPS-403, CPS-1203
+- **Coordinates with:** OPS-1702
+- **Acceptance:** console access is short-lived, capability-gated, never stored
+  in operation history, and redacted from logs; pause/unpause and rescue remain
+  deferred unless explicitly selected after provider capability review.
+
+### CPS-1703 — Admin-curated resource catalog policy
+
+- **Sprint/Priority/Points:** 17 / Must / 8
+- **Depends on:** CPS-304, CPS-1202, CPS-1203
+- **Coordinates with:** OPS-1703
+- **Acceptance:** users can list/select only approved Glance images, Nova
+  flavors, availability zones, volume types, and external networks; no user
+  mutation endpoint exists for these catalogs; UUIDs are discovered, never
+  hardcoded in CPS.
+
+### CPS-1704 — Tenant network guardrails
+
+- **Sprint/Priority/Points:** 17 / Must / 8
+- **Depends on:** CPS-902..905, CPS-1202, CPS-1203
+- **Coordinates with:** OPS-1704
+- **Acceptance:** CIDR overlap, allowed external-network use, security-rule
+  policy, quota, and cross-project references fail closed before mutation and
+  are rechecked by OPS.
+
+## Epic CPS-E18 — CMP user resource release
+
+### CPS-1801 — Cross-resource convergence and recovery
+
+- **Sprint/Priority/Points:** 18 / Must / 13
+- **Depends on:** CPS-E15..E17
+- **Coordinates with:** OPS-1801
+- **Acceptance:** duplicate, timeout-before/after-mutation, restart, late
+  result, partial relationship update, direct drift, and DLQ replay converge
+  for volume, snapshot, keypair, advanced VM, and catalog-policy workflows.
+
+### CPS-1802 — Migration, runbook, and real-cloud release acceptance
+
+- **Sprint/Priority/Points:** 18 / Must / 8
+- **Depends on:** CPS-1801
+- **Coordinates with:** OPS-1802
+- **Acceptance:** clean/current-head migration lifecycle, authorization and
+  secret scans, compatibility report, metrics/runbooks, end-to-end disposable
+  scenario, and verified cleanup all pass.

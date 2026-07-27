@@ -66,8 +66,12 @@ A story is done when:
 | 12 | Expanded control-plane release | Cross-resource drift, recovery, upgrade, and compatibility acceptance | Target OpenStack release matrix and cleanup gates pass |
 | 13 | Provider tenancy and authorization boundary | Provider-owned credential, canonical project ownership, and fail-closed TMS client boundary | Every tenant resource action is ownership-resolved and authorized without modifying TMS/LMS |
 | 14 | VM-create terminal convergence | Early provider identity persistence and stale-operation reconciliation | An ACTIVE Nova server always converges to a deterministic CPS terminal result across timeout, restart, and redelivery |
+| 15 | CMP user block-storage lifecycle | Standalone volume CRUD/extend plus attach/detach | A workspace user can create, attach, detach, extend, and delete a disposable volume safely |
+| 16 | CMP user snapshots and SSH keys | Volume snapshot lifecycle and project-owned keypair management | Snapshot restore inputs and SSH access resources are durable, replay-safe, and tenant-isolated |
+| 17 | Advanced VM and governed catalogs | Resize/rebuild/console plus user-visible admin-curated catalogs and network guardrails | Users operate VMs and select only approved image/flavor/external-network resources |
+| 18 | CMP user resource release | Cross-resource recovery, drift convergence, migration, and real-cloud acceptance | The complete user resource bundle passes restart, redelivery, authorization, and cleanup gates |
 
-Sprints 7–14 are forecasts governed by
+Sprints 7–18 are forecasts governed by
 `docs/superpowers/specs/2026-07-24-openstack-resource-control-plane-expansion-design.md`.
 They do not start until the design delta is approved and Sprint Planning
 selects ready stories.
