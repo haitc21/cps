@@ -74,6 +74,8 @@ class InventoryResourceView(BaseModel):
     availability_zone: str | None = None
     metadata_values: dict[str, Any] | None = None
     attachments: list[dict[str, Any]] | None = None
+    volume_provider_resource_id: str | None = None
+    snapshot_size_gib: int | None = None
     version: int
     created_at: datetime
     updated_at: datetime

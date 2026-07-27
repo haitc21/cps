@@ -18,6 +18,7 @@ class VolumeOperationBody(BaseModel):
     required_scope: ScopeKind = ScopeKind.PROJECT
     provider_resource_id: str | None = Field(default=None, max_length=255)
     project_provider_resource_id: str | None = Field(default=None, max_length=255)
+    source_snapshot_provider_resource_id: str | None = Field(default=None, max_length=255)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     size_gib: int | None = Field(default=None, ge=1, le=16384)
     volume_type_provider_resource_id: str | None = Field(default=None, max_length=255)

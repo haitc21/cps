@@ -423,6 +423,16 @@ class EventInboxConsumer:
                                 if isinstance(result.get("resource"), dict)
                                 else None,
                             )
+                    if (
+                        result.get("operation") == "delete"
+                        and result.get("resource_type") in {"volume", "snapshot"}
+                        and isinstance(result.get("provider_resource_id"), str)
+                    ):
+                        await uow.inventory.mark_resource_deleted(
+                            result["resource_type"],
+                            envelope.provider_connection_id,
+                            result["provider_resource_id"],
+                        )
 
             marked = await uow.inbox.mark_processed(inbox_id, now=now)
 

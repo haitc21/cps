@@ -33,6 +33,7 @@ class VolumeOperationRequest(BaseModel):
     provider_connection_id: UUID
     provider_resource_id: str | None = Field(default=None, max_length=255)
     project_provider_resource_id: str | None = Field(default=None, max_length=255)
+    source_snapshot_provider_resource_id: str | None = Field(default=None, max_length=255)
     name: str | None = Field(default=None, min_length=1, max_length=255)
     size_gib: int | None = Field(default=None, ge=1, le=16384)
     volume_type_provider_resource_id: str | None = Field(default=None, max_length=255)
@@ -45,7 +46,7 @@ class VolumeOperationRequest(BaseModel):
         if self.operation is VolumeOperation.CREATE:
             if not self.name:
                 raise ValueError("volume create requires name")
-            if self.size_gib is None:
+            if self.size_gib is None and not self.source_snapshot_provider_resource_id:
                 raise ValueError("volume create requires size_gib")
         elif self.operation is VolumeOperation.RESIZE:
             if not self.provider_resource_id:

@@ -22,6 +22,7 @@ class InventoryResourceType(StrEnum):
     SUBNET = "subnet"
     PORT = "port"
     VOLUME = "volume"
+    VOLUME_SNAPSHOT = "volume-snapshot"
     ROLE_ASSIGNMENT = "role-assignment"
     QUOTA = "quota"
 
@@ -49,6 +50,8 @@ class InventoryBatchItem(BaseModel):
     metadata: dict[str, Any] | None = None
     availability_zone: str | None = Field(default=None, max_length=255)
     attachments: list[dict[str, Any]] = Field(default_factory=list, max_length=32)
+    volume_provider_resource_id: str | None = Field(default=None, max_length=255)
+    snapshot_size_gib: int | None = Field(default=None, ge=1, le=16384)
     attributes: dict[str, Any] = Field(default_factory=dict)
 
 

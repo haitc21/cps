@@ -101,3 +101,25 @@ def test_volume_batch_accepts_typed_inventory_fields() -> None:
     assert payload.items[0].size_gib == 20
     assert payload.items[0].volume_type_provider_resource_id == "fast-1"
     assert payload.items[0].attachments == [{"server_id": "server-1", "device": "/dev/vdb"}]
+
+
+def test_volume_snapshot_batch_accepts_typed_inventory_fields() -> None:
+    item = {
+        "provider_resource_id": "snapshot-1",
+        "project_provider_resource_id": "project-1",
+        "name": "before-upgrade",
+        "provider_status": "available",
+        "volume_provider_resource_id": "volume-1",
+        "snapshot_size_gib": 20,
+        "metadata": {"tier": "gold"},
+    }
+    payload = InventoryBatchPayload.model_validate(
+        _payload(
+            resource_type="volume-snapshot",
+            items=[item],
+            item_count=1,
+            checksum=compute_inventory_checksum([item]),
+        )
+    )
+    assert payload.resource_type is InventoryResourceType.VOLUME_SNAPSHOT
+    assert payload.items[0].volume_provider_resource_id == "volume-1"

@@ -289,6 +289,18 @@ class Volume(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     attachments: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="[]")
 
 
+class VolumeSnapshot(Base, InventoryResourceMixin, ProjectOwnershipMixin):
+    """Provider-neutral inventory projection of a Cinder volume snapshot."""
+
+    __tablename__ = "volume_snapshots"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    volume_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    size_gib: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    metadata_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
+
+
 class InstancePort(Base):
     __tablename__ = "instance_ports"
     instance_id: Mapped[uuid.UUID] = mapped_column(

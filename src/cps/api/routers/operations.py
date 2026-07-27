@@ -23,6 +23,7 @@ from cps.api.schemas.operations import (
     ValidationAccepted,
 )
 from cps.api.schemas.volume import VolumeAttachmentOperationBody, VolumeOperationBody
+from cps.api.schemas.volume_snapshot import VolumeSnapshotOperationBody
 from cps.application.operations import OperationApplicationService
 from cps.contracts.messages.identity import (
     IdentityOperation,
@@ -36,6 +37,7 @@ from cps.contracts.messages.volume_operations import (
     VolumeAttachmentOperationRequest,
     VolumeOperationRequest,
 )
+from cps.contracts.messages.volume_snapshot_operations import VolumeSnapshotOperationRequest
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
@@ -99,6 +101,35 @@ async def volume_operation(
         operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
     )
     operation = await _service(uow).create_volume_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=typed,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/volume-snapshots",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def volume_snapshot_operation(
+    connection_id: uuid.UUID,
+    body: VolumeSnapshotOperationBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    typed = VolumeSnapshotOperationRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    )
+    operation = await _service(uow).create_volume_snapshot_operation(
         connection_id,
         idempotency_key=idempotency_key,
         correlation_id=uuid.UUID(request.state.correlation_id),

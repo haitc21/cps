@@ -33,6 +33,7 @@ from cps.infrastructure.db.models.inventory import (
     SecurityGroupRule,
     Subnet,
     Volume,
+    VolumeSnapshot,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
@@ -54,8 +55,10 @@ RESOURCE_MODELS: dict[str, Any] = {
     "security-group-rule": SecurityGroupRule,
     "floating-ip": FloatingIP,
     "volume": Volume,
+    "volume-snapshot": VolumeSnapshot,
 }
 RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}
+RESOURCE_ALIASES["snapshot"] = "volume-snapshot"
 RESOURCE_ALIASES.update({"identity-domains": "domain", "identity_domain": "domain"})
 RESOURCE_ALIASES.update(
     {"role-assignments": "role-assignment", "role_assignment": "role-assignment", "quotas": "quota"}
@@ -158,6 +161,25 @@ class InventoryRepository:
             )
         )
         return result.scalar_one_or_none() is not None
+
+    async def mark_resource_deleted(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        provider_resource_id: str,
+    ) -> bool:
+        model = RESOURCE_MODELS.get(RESOURCE_ALIASES.get(resource_type, resource_type))
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(
+            update(model)
+            .where(
+                model.provider_connection_id == provider_connection_id,
+                model.provider_resource_id == provider_resource_id,
+            )
+            .values(lifecycle_state="DELETED", deleted_at=datetime.now(UTC))
+        )
+        return bool(getattr(result, "rowcount", 0))
 
     async def persist_instance_result(
         self,
@@ -617,6 +639,14 @@ class InventoryRepository:
                 metadata_values=item.get("metadata", attrs.get("metadata", {})),
                 attachments=item.get("attachments", attrs.get("attachments", [])),
             )
+        if model is VolumeSnapshot:
+            values.update(
+                volume_provider_resource_id=item.get(
+                    "volume_provider_resource_id", attrs.get("volume_id")
+                ),
+                size_gib=item.get("snapshot_size_gib", attrs.get("size")),
+                metadata_values=item.get("metadata", attrs.get("metadata", {})),
+            )
         statement = pg_insert(model).values(**values)
         conflict_set: dict[str, Any] = {
             "name": statement.excluded.name,
@@ -658,7 +688,7 @@ class InventoryRepository:
             )
         elif model is IdentityDomain:
             conflict_set["enabled"] = statement.excluded.enabled
-        elif model in (RoleAssignment, Quota, Volume):
+        elif model in (RoleAssignment, Quota, Volume, VolumeSnapshot):
             # Keep all typed fields synchronized while preserving the generic
             # provider attributes used by older consumers.
             typed = {

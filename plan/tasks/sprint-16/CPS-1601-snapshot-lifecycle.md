@@ -1,6 +1,6 @@
 # CPS-1601 — Volume snapshot lifecycle
 
-**Status:** Blocked by Sprint 15
+**Status:** Done
 **Points:** 8
 **Depends on:** CPS-1501..1503
 **Paired task:** OPS-1601
@@ -29,3 +29,13 @@ source for new project-owned volumes.
 Snapshot and cloned volume converge in inventory with restart/redelivery and
 real-cloud evidence.
 
+## Review evidence
+
+- CPS/OPS unit and contract suites pass: CPS `515 passed, 181 skipped`; OPS
+  `386 passed, 24 skipped`; Ruff passes for both services.
+- Real curl/OpenStack acceptance passed for create, inventory sync, rename,
+  clone-from-snapshot, delete, idempotent replay, and cleanup. Direct Cinder
+  checks confirmed `available` snapshot status, source volume relationship,
+  project ownership, and clone `snapshot_id`.
+- Snapshot inventory migration `20260727_0014` applied successfully; deleted
+  resources are projected as tombstones through the operation result consumer.

@@ -24,6 +24,7 @@ from cps.infrastructure.db.models.inventory import (
     SecurityGroupRule,
     Subnet,
     Volume,
+    VolumeSnapshot,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.operation_events import OperationEvent
@@ -51,6 +52,7 @@ __all__ = [
     "Subnet",
     "Port",
     "Volume",
+    "VolumeSnapshot",
     "InstancePort",
     "InstanceVolume",
     "InventorySync",

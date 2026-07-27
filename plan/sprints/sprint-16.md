@@ -1,6 +1,6 @@
 # Sprint 16 — CMP user snapshots and SSH access
 
-**Status:** Proposed — depends on Sprint 15
+**Status:** In progress
 **Dates:** TBD at Sprint Planning
 **Capacity:** 21 CPS points
 **Sprint Goal:** An authorized workspace user can snapshot/clone project
@@ -12,7 +12,7 @@ storage and manage SSH public keypairs without CPS handling private keys.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1601 Volume snapshot lifecycle | 8 | CPS | OPS-1601 | Blocked by Sprint 15 |
+| CPS-1601 Volume snapshot lifecycle | 8 | CPS | OPS-1601 | Done |
 | CPS-1602 Project-owned keypair lifecycle | 8 | CPS | OPS-1602 | Ready after contract refinement |
 | CPS-1603 Snapshot/keypair acceptance | 5 | CPS/OPS | OPS-1601..1602 | Blocked |
 
@@ -20,7 +20,7 @@ storage and manage SSH public keypairs without CPS handling private keys.
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1601](../tasks/sprint-16/CPS-1601-snapshot-lifecycle.md) | Snapshot inventory/create/update/delete and clone input | CPS-1501..1503 | Blocked |
+| [CPS-1601](../tasks/sprint-16/CPS-1601-snapshot-lifecycle.md) | Snapshot inventory/create/update/delete and clone input | CPS-1501..1503 | Done |
 | [CPS-1602](../tasks/sprint-16/CPS-1602-keypair-lifecycle.md) | Public-key-only keypair list/import/delete | CPS-1202, CPS-1203 | Ready |
 | [CPS-1603](../tasks/sprint-16/CPS-1603-snapshot-keypair-acceptance.md) | Snapshot clone and SSH VM acceptance | CPS-1601..1602 | Blocked |
 
@@ -50,8 +50,10 @@ storage and manage SSH public keypairs without CPS handling private keys.
 
 ## Review evidence
 
-- Contract/redaction evidence:
-- Snapshot waiter/recovery:
+- Contract/redaction evidence: typed create/update/delete contracts, project
+  ownership checks, deterministic operation/message IDs, and replay coverage.
+- Snapshot waiter/recovery: bounded Cinder availability waiter, idempotent
+  delete handling, inventory sync, and deleted-resource tombstones.
 - SSH acceptance:
-- Cleanup:
-
+- Cleanup: temporary Cinder volumes/snapshots and the temporary OpenStack
+  project were removed; direct OpenStack lists were empty.
