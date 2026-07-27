@@ -116,7 +116,7 @@ def test_tampered_ciphertext_fails(cipher: AesGcmCredentialCipher) -> None:
         key_version=_KEY_VERSION,
     )
     tampered = EncryptedPassword(
-        ciphertext=b"\x00" + encrypted.ciphertext[1:],
+        ciphertext=bytes([encrypted.ciphertext[0] ^ 0xFF]) + encrypted.ciphertext[1:],
         nonce=encrypted.nonce,
         key_version=encrypted.key_version,
     )
@@ -133,7 +133,7 @@ def test_tampered_nonce_fails(cipher: AesGcmCredentialCipher) -> None:
     )
     tampered = EncryptedPassword(
         ciphertext=encrypted.ciphertext,
-        nonce=b"\xff" + encrypted.nonce[1:],
+        nonce=bytes([encrypted.nonce[0] ^ 0xFF]) + encrypted.nonce[1:],
         key_version=encrypted.key_version,
     )
     with pytest.raises(CredentialEncryptionError, match="credential decryption failed"):

@@ -1,6 +1,6 @@
 # CPS-1701 — Instance resize and rebuild
 
-**Status:** Needs refinement
+**Status:** In progress
 **Points:** 13
 **Depends on:** CPS-403, CPS-1203, CPS-1703
 **Paired task:** OPS-1701
@@ -23,8 +23,14 @@ resources with deterministic recovery.
 - Rebuild approved/unapproved image, volume-backed constraints, provider error,
   ownership denial, and result redelivery.
 
+## Implementation note
+
+The instance contract now carries resize, confirm-resize, revert-resize, and
+rebuild actions. Resize/rebuild references are checked against the approved
+catalog before CPS publishes a command; OPS maps them to Nova's resize,
+confirm, revert, and rebuild calls.
+
 ## Done when
 
 Both operations converge in CPS inventory/history and pass disposable
 real-cloud recovery scenarios.
-

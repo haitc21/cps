@@ -46,10 +46,14 @@ from cps.contracts.messages.types import (
     IDENTITY_QUOTA_UPDATE,
     IDENTITY_ROLE_ENSURE,
     IDENTITY_ROLE_REVOKE,
+    INSTANCE_CONFIRM_RESIZE,
     INSTANCE_CREATE,
     INSTANCE_DELETE,
     INSTANCE_GET,
     INSTANCE_REBOOT,
+    INSTANCE_REBUILD,
+    INSTANCE_RESIZE,
+    INSTANCE_REVERT_RESIZE,
     INSTANCE_START,
     INSTANCE_STOP,
     INVENTORY_COLLECT,
@@ -475,6 +479,8 @@ class OperationApplicationService:
         action: InstanceAction,
         instance_provider_resource_id: str,
         reboot_type: str | None = None,
+        resize_flavor_provider_resource_id: str | None = None,
+        rebuild_image_provider_resource_id: str | None = None,
     ) -> OperationView:
         connection = await self._repository.get_provider_connection(connection_id)
         if connection is None:
@@ -483,12 +489,32 @@ class OperationApplicationService:
             "instance", connection.id, instance_provider_resource_id
         ):
             raise ProviderConnectionNotFoundError
+        if action is InstanceAction.RESIZE:
+            if (
+                not resize_flavor_provider_resource_id
+                or not await self._inventory_resource_is_catalog_approved(
+                    "flavor", connection.id, resize_flavor_provider_resource_id
+                )
+            ):
+                raise CatalogPolicyViolationError
+        if action is InstanceAction.REBUILD:
+            if (
+                not rebuild_image_provider_resource_id
+                or not await self._inventory_resource_is_catalog_approved(
+                    "image", connection.id, rebuild_image_provider_resource_id
+                )
+            ):
+                raise CatalogPolicyViolationError
         message_types = {
             InstanceAction.GET: INSTANCE_GET,
             InstanceAction.START: INSTANCE_START,
             InstanceAction.STOP: INSTANCE_STOP,
             InstanceAction.REBOOT: INSTANCE_REBOOT,
             InstanceAction.DELETE: INSTANCE_DELETE,
+            InstanceAction.RESIZE: INSTANCE_RESIZE,
+            InstanceAction.CONFIRM_RESIZE: INSTANCE_CONFIRM_RESIZE,
+            InstanceAction.REVERT_RESIZE: INSTANCE_REVERT_RESIZE,
+            InstanceAction.REBUILD: INSTANCE_REBUILD,
         }
         message_type = message_types.get(action)
         if message_type is None:
@@ -500,6 +526,8 @@ class OperationApplicationService:
             "action": action.value,
             "instance_provider_resource_id": instance_provider_resource_id,
             "reboot_type": reboot_type,
+            "resize_flavor_provider_resource_id": resize_flavor_provider_resource_id,
+            "rebuild_image_provider_resource_id": rebuild_image_provider_resource_id,
         }
         envelope = MessageEnvelope.model_validate(
             {

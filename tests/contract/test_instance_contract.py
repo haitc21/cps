@@ -68,3 +68,22 @@ def test_complete_ssh_request_accepts_per_instance_key_and_floating_network() ->
     )
     assert request.ssh_public_key is not None
     assert request.floating_network_provider_resource_id == "external-network-1"
+
+
+def test_resize_and_rebuild_commands_require_their_catalog_reference() -> None:
+    resized = InstanceCommandPayload.model_validate(
+        {
+            "action": InstanceAction.RESIZE,
+            "instance_provider_resource_id": "instance-1",
+            "resize_flavor_provider_resource_id": "flavor-2",
+        }
+    )
+    rebuilt = InstanceCommandPayload.model_validate(
+        {
+            "action": InstanceAction.REBUILD,
+            "instance_provider_resource_id": "instance-1",
+            "rebuild_image_provider_resource_id": "image-2",
+        }
+    )
+    assert resized.resize_flavor_provider_resource_id == "flavor-2"
+    assert rebuilt.rebuild_image_provider_resource_id == "image-2"

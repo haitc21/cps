@@ -438,6 +438,8 @@ async def instance_action(
         action=action_value,
         instance_provider_resource_id=instance_provider_resource_id,
         reboot_type=body.reboot_type,
+        resize_flavor_provider_resource_id=body.resize_flavor_provider_resource_id,
+        rebuild_image_provider_resource_id=body.rebuild_image_provider_resource_id,
     )
     await uow.commit()
     return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
