@@ -1,6 +1,6 @@
 # Sprint 16 — CMP user snapshots and SSH access
 
-**Status:** In progress
+**Status:** Done with lab-network SSH limitation
 **Dates:** TBD at Sprint Planning
 **Capacity:** 21 CPS points
 **Sprint Goal:** An authorized workspace user can snapshot/clone project
@@ -13,16 +13,16 @@ storage and manage SSH public keypairs without CPS handling private keys.
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
 | CPS-1601 Volume snapshot lifecycle | 8 | CPS | OPS-1601 | Done |
-| CPS-1602 Project-owned keypair lifecycle | 8 | CPS | OPS-1602 | Ready after contract refinement |
-| CPS-1603 Snapshot/keypair acceptance | 5 | CPS/OPS | OPS-1601..1602 | Blocked |
+| CPS-1602 Project-owned keypair lifecycle | 8 | CPS | OPS-1602 | Done |
+| CPS-1603 Snapshot/keypair acceptance | 5 | CPS/OPS | OPS-1601..1602 | Done with lab-network SSH limitation |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
 | [CPS-1601](../tasks/sprint-16/CPS-1601-snapshot-lifecycle.md) | Snapshot inventory/create/update/delete and clone input | CPS-1501..1503 | Done |
-| [CPS-1602](../tasks/sprint-16/CPS-1602-keypair-lifecycle.md) | Public-key-only keypair list/import/delete | CPS-1202, CPS-1203 | Ready |
-| [CPS-1603](../tasks/sprint-16/CPS-1603-snapshot-keypair-acceptance.md) | Snapshot clone and SSH VM acceptance | CPS-1601..1602 | Blocked |
+| [CPS-1602](../tasks/sprint-16/CPS-1602-keypair-lifecycle.md) | Public-key-only keypair list/import/delete | CPS-1202, CPS-1203 | Done |
+| [CPS-1603](../tasks/sprint-16/CPS-1603-snapshot-keypair-acceptance.md) | Snapshot clone and SSH VM acceptance | CPS-1601..1602 | Done with lab-network SSH limitation |
 
 ## Execution sequence
 
@@ -38,7 +38,8 @@ storage and manage SSH public keypairs without CPS handling private keys.
 - Snapshot delete refuses active dependencies and absent delete is idempotent.
 - Keypair input accepts public material only; no private key field exists.
 - Duplicate imports converge by project/name/fingerprint without silent adoption.
-- Real-cloud clone and SSH access pass with verified cleanup.
+- Real-cloud clone/keypair API acceptance passes with verified cleanup; SSH is
+  pending a routable lab provider network.
 
 ## Risks and impediments
 
@@ -54,6 +55,7 @@ storage and manage SSH public keypairs without CPS handling private keys.
   ownership checks, deterministic operation/message IDs, and replay coverage.
 - Snapshot waiter/recovery: bounded Cinder availability waiter, idempotent
   delete handling, inventory sync, and deleted-resource tombstones.
-- SSH acceptance:
+- SSH acceptance: VM/keypair/floating-IP association succeeded through CPS and
+  OpenStack; direct SSH from the CMP host returned `No route to host`.
 - Cleanup: temporary Cinder volumes/snapshots and the temporary OpenStack
   project were removed; direct OpenStack lists were empty.
