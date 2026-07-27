@@ -26,6 +26,7 @@ from cps.contracts.messages.identity import (
     RoleAssignmentRequest,
 )
 from cps.contracts.messages.instance import InstanceAction, InstanceCreateRequest
+from cps.contracts.messages.keypair_operations import KeypairOperationRequest
 from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.types import (
@@ -52,6 +53,8 @@ from cps.contracts.messages.types import (
     INSTANCE_STOP,
     INVENTORY_COLLECT,
     INVENTORY_REFRESH,
+    KEYPAIR_DELETE,
+    KEYPAIR_IMPORT,
     NETWORK_CREATE,
     NETWORK_DELETE,
     NETWORK_UPDATE,
@@ -363,6 +366,10 @@ class OperationApplicationService:
         references.extend(
             ("security_group", value) for value in request.security_group_provider_resource_ids
         )
+        if request.key_name and not await self._inventory_resource_name_belongs(
+            "keypair", connection.id, request.key_name
+        ):
+            raise ProviderConnectionNotFoundError
         for resource_type, provider_resource_id in references:
             if resource_type == "security_group":
                 continue
@@ -430,6 +437,15 @@ class OperationApplicationService:
             raise RuntimeError("inventory repository is required")
         return await self._inventory.resource_belongs_to_connection(
             resource_type, connection_id, provider_resource_id
+        )
+
+    async def _inventory_resource_name_belongs(
+        self, resource_type: str, connection_id: uuid.UUID, name: str
+    ) -> bool:
+        if self._inventory is None:
+            raise RuntimeError("inventory repository is required")
+        return await self._inventory.resource_name_belongs_to_connection(
+            resource_type, connection_id, name
         )
 
     async def create_instance_action(
@@ -1004,6 +1020,91 @@ class OperationApplicationService:
             payload_parameters["name"] = request.name
         elif request.name:
             payload_parameters["name"] = request.name
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": datetime.now(UTC),
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=envelope.occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        return to_view(operation)
+
+    async def create_keypair_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: KeypairOperationRequest,
+    ) -> OperationView:
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        if request.operation.value == "delete":
+            if self._inventory is None or not request.provider_resource_id:
+                raise ProviderConnectionNotFoundError
+            if not await self._inventory.resource_belongs_to_connection(
+                "keypair", connection.id, request.provider_resource_id
+            ):
+                raise ProviderConnectionNotFoundError
+        message_type = KEYPAIR_IMPORT if request.operation.value == "import" else KEYPAIR_DELETE
+        operation_id = uuid.uuid5(connection.id, f"keypair:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "keypair-command")
+        parameters = dict(request.parameters)
+        if request.project_provider_resource_id:
+            parameters["project_provider_resource_id"] = request.project_provider_resource_id
+        if request.name:
+            parameters["name"] = request.name
+        if request.public_key:
+            parameters["public_key"] = request.public_key
+        payload = {
+            "operation_id": str(operation_id),
+            "resource_type": "keypair",
+            "operation": "create" if request.operation.value == "import" else "delete",
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "provider_resource_id": request.provider_resource_id,
+            "parameters": parameters,
+        }
         envelope = MessageEnvelope.model_validate(
             {
                 "message_id": message_id,

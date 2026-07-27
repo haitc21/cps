@@ -15,6 +15,7 @@ from cps.api.schemas.identity import (
 )
 from cps.api.schemas.instance import InstanceActionRequest, InstanceCreateRequest
 from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequest
+from cps.api.schemas.keypair import KeypairOperationBody
 from cps.api.schemas.network import NetworkOperationBody
 from cps.api.schemas.operations import (
     OperationEventPage,
@@ -31,6 +32,7 @@ from cps.contracts.messages.identity import (
     QuotaRequest,
     RoleAssignmentRequest,
 )
+from cps.contracts.messages.keypair_operations import KeypairOperationRequest
 from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.volume_operations import (
@@ -130,6 +132,35 @@ async def volume_snapshot_operation(
         operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
     )
     operation = await _service(uow).create_volume_snapshot_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=typed,
+    )
+    await uow.commit()
+    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+
+
+@router.post(
+    "/api/v1/provider-connections/{connection_id}/keypairs",
+    response_model=ValidationAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def keypair_operation(
+    connection_id: uuid.UUID,
+    body: KeypairOperationBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> ValidationAccepted:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    typed = KeypairOperationRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    )
+    operation = await _service(uow).create_keypair_operation(
         connection_id,
         idempotency_key=idempotency_key,
         correlation_id=uuid.UUID(request.state.correlation_id),

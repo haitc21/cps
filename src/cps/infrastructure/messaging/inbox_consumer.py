@@ -425,7 +425,7 @@ class EventInboxConsumer:
                             )
                     if (
                         result.get("operation") == "delete"
-                        and result.get("resource_type") in {"volume", "snapshot"}
+                        and result.get("resource_type") in {"volume", "snapshot", "keypair"}
                         and isinstance(result.get("provider_resource_id"), str)
                     ):
                         await uow.inventory.mark_resource_deleted(

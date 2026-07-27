@@ -23,6 +23,7 @@ class InventoryResourceType(StrEnum):
     PORT = "port"
     VOLUME = "volume"
     VOLUME_SNAPSHOT = "volume-snapshot"
+    KEYPAIR = "keypair"
     ROLE_ASSIGNMENT = "role-assignment"
     QUOTA = "quota"
 

@@ -22,6 +22,7 @@ from cps.infrastructure.db.models.inventory import (
     Instance,
     InstancePort,
     InstanceVolume,
+    Keypair,
     Network,
     Port,
     Project,
@@ -56,6 +57,7 @@ RESOURCE_MODELS: dict[str, Any] = {
     "floating-ip": FloatingIP,
     "volume": Volume,
     "volume-snapshot": VolumeSnapshot,
+    "keypair": Keypair,
 }
 RESOURCE_ALIASES = {f"{key}s": key for key in RESOURCE_MODELS}
 RESOURCE_ALIASES["snapshot"] = "volume-snapshot"
@@ -157,6 +159,25 @@ class InventoryRepository:
             select(model.id).where(
                 model.provider_connection_id == provider_connection_id,
                 model.provider_resource_id == provider_resource_id,
+                model.lifecycle_state != "DELETED",
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def resource_name_belongs_to_connection(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        name: str,
+    ) -> bool:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(
+            select(model.id).where(
+                model.provider_connection_id == provider_connection_id,
+                model.name == name,
                 model.lifecycle_state != "DELETED",
             )
         )
@@ -647,6 +668,12 @@ class InventoryRepository:
                 size_gib=item.get("snapshot_size_gib", attrs.get("size")),
                 metadata_values=item.get("metadata", attrs.get("metadata", {})),
             )
+        if model is Keypair:
+            values.update(
+                fingerprint=item.get("fingerprint", attrs.get("fingerprint")),
+                key_type=item.get("key_type", attrs.get("type")),
+                public_key=item.get("public_key", attrs.get("public_key")),
+            )
         statement = pg_insert(model).values(**values)
         conflict_set: dict[str, Any] = {
             "name": statement.excluded.name,
@@ -688,7 +715,7 @@ class InventoryRepository:
             )
         elif model is IdentityDomain:
             conflict_set["enabled"] = statement.excluded.enabled
-        elif model in (RoleAssignment, Quota, Volume, VolumeSnapshot):
+        elif model in (RoleAssignment, Quota, Volume, VolumeSnapshot, Keypair):
             # Keep all typed fields synchronized while preserving the generic
             # provider attributes used by older consumers.
             typed = {

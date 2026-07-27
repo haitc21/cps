@@ -52,6 +52,10 @@ class InstanceCreateRequest(BaseModel):
             raise ValueError("root volume size is only valid for VOLUME_FROM_IMAGE")
         if self.key_name and self.ssh_public_key:
             raise ValueError("key_name and ssh_public_key are mutually exclusive")
+        if self.ssh_public_key:
+            lowered = self.ssh_public_key.lower()
+            if "private key" in lowered or "begin openssh private key" in lowered:
+                raise ValueError("PRIVATE_KEY_MATERIAL_REJECTED")
         return self
 
 

@@ -1,6 +1,6 @@
 # CPS-1602 — Project-owned keypair lifecycle
 
-**Status:** Ready
+**Status:** Done
 **Points:** 8
 **Depends on:** CPS-1202, CPS-1203
 **Paired task:** OPS-1602
@@ -31,3 +31,13 @@ material only.
 An imported keypair boots a disposable SSH-accessible VM and no private material
 appears in DB, messages, logs, fixtures, errors, or test output.
 
+## Review evidence
+
+- CPS migration `20260727_0015` applied successfully.
+- CPS/OPS keypair unit and contract tests pass; Ruff passes for both services.
+- Real curl/OpenStack acceptance passed for project-scoped import, inventory
+  sync, public-only operation results, delete, tombstone projection, and
+  provider cleanup. Direct OpenStack keypair list was empty after cleanup.
+- Private-key markers are rejected and SDK responses are mapped before event
+  serialization, so provider-only fields such as `private_key` are not
+  published.

@@ -56,6 +56,8 @@ ALLOWED_ORIGINAL_ROUTING_KEYS = frozenset(
         "openstack.volume.snapshot.create",
         "openstack.volume.snapshot.update",
         "openstack.volume.snapshot.delete",
+        "openstack.keypair.import",
+        "openstack.keypair.delete",
         "openstack.volume.attachment.attach",
         "openstack.volume.attachment.detach",
         "openstack.identity.domain.create",

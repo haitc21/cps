@@ -76,6 +76,9 @@ class InventoryResourceView(BaseModel):
     attachments: list[dict[str, Any]] | None = None
     volume_provider_resource_id: str | None = None
     snapshot_size_gib: int | None = None
+    fingerprint: str | None = None
+    key_type: str | None = None
+    public_key: str | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -102,6 +105,7 @@ class InventorySyncRequest(BaseModel):
             "security-group-rule",
             "floating-ip",
             "volume",
+            "keypair",
             "instance",
             "role-assignment",
             "quota",

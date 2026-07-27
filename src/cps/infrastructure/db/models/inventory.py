@@ -301,6 +301,16 @@ class VolumeSnapshot(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     )
 
 
+class Keypair(Base, InventoryResourceMixin, ProjectOwnershipMixin):
+    """Project-owned Nova keypair; only public material is persisted."""
+
+    __tablename__ = "keypairs"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    fingerprint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    key_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    public_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class InstancePort(Base):
     __tablename__ = "instance_ports"
     instance_id: Mapped[uuid.UUID] = mapped_column(
