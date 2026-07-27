@@ -183,6 +183,58 @@ class InventoryRepository:
         )
         return result.scalar_one_or_none() is not None
 
+    async def catalog_resource_is_approved(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        provider_resource_id: str,
+    ) -> bool:
+        """Return true only for a live resource explicitly approved by admin."""
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(
+            select(model.id).where(
+                model.provider_connection_id == provider_connection_id,
+                model.provider_resource_id == provider_resource_id,
+                model.lifecycle_state != "DELETED",
+                model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def list_catalog_resources(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        *,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[Any], int]:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        filters = [
+            model.provider_connection_id == provider_connection_id,
+            model.lifecycle_state != "DELETED",
+            model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+        ]
+        total = int(
+            (
+                await self._session.execute(select(func.count()).select_from(model).where(*filters))
+            ).scalar_one()
+        )
+        result = await self._session.execute(
+            select(model)
+            .where(*filters)
+            .order_by(model.name.asc(), model.id.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(result.scalars()), total
+
     async def mark_resource_deleted(
         self,
         resource_type: str,

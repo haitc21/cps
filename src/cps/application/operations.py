@@ -14,6 +14,7 @@ from cps.api.schemas.operations import (
 )
 from cps.application.audit import project_operation_audit
 from cps.contracts.errors import (
+    CatalogPolicyViolationError,
     IdempotencyKeyReusedError,
     OperationNotFoundPublicError,
     ProviderConnectionNotFoundError,
@@ -377,6 +378,14 @@ class OperationApplicationService:
                 resource_type, connection.id, provider_resource_id
             ):
                 raise ProviderConnectionNotFoundError
+        for resource_type, provider_resource_id in (
+            ("flavor", request.flavor_provider_resource_id),
+            ("image", request.image_provider_resource_id),
+        ):
+            if not await self._inventory_resource_is_catalog_approved(
+                resource_type, connection.id, provider_resource_id
+            ):
+                raise CatalogPolicyViolationError
         operation_id = _uuid7()
         message_id = _uuid7()
         occurred_at = datetime.now(UTC)
@@ -446,6 +455,15 @@ class OperationApplicationService:
             raise RuntimeError("inventory repository is required")
         return await self._inventory.resource_name_belongs_to_connection(
             resource_type, connection_id, name
+        )
+
+    async def _inventory_resource_is_catalog_approved(
+        self, resource_type: str, connection_id: uuid.UUID, provider_resource_id: str
+    ) -> bool:
+        if self._inventory is None:
+            raise RuntimeError("inventory repository is required")
+        return await self._inventory.catalog_resource_is_approved(
+            resource_type, connection_id, provider_resource_id
         )
 
     async def create_instance_action(

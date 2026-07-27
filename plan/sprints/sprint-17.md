@@ -1,6 +1,6 @@
 # Sprint 17 — Advanced VM lifecycle and governed catalogs
 
-**Status:** Proposed — ready for design-delta approval
+**Status:** In progress
 **Dates:** TBD at Sprint Planning
 **Capacity:** 34 CPS points
 **Sprint Goal:** CMP users can operate VMs beyond basic power actions while
@@ -14,7 +14,7 @@ selecting only administrator-approved catalog and external-network resources.
 |---|---:|---|---|---|
 | CPS-1701 Instance resize and rebuild | 13 | CPS | OPS-1701 | Needs refinement |
 | CPS-1702 Instance console access | 5 | CPS | OPS-1702 | Needs threat review |
-| CPS-1703 Admin-curated resource catalog policy | 8 | CPS | OPS-1703 | Ready |
+| CPS-1703 Admin-curated resource catalog policy | 8 | CPS | OPS-1703 | In progress — tag policy selected |
 | CPS-1704 Tenant network guardrails | 8 | CPS | OPS-1704 | Ready |
 
 ## Task backlog
@@ -23,7 +23,7 @@ selecting only administrator-approved catalog and external-network resources.
 |---|---|---|---|
 | [CPS-1701](../tasks/sprint-17/CPS-1701-instance-resize-rebuild.md) | Resize confirm/revert and policy-safe rebuild | CPS-403, CPS-1203 | Needs refinement |
 | [CPS-1702](../tasks/sprint-17/CPS-1702-instance-console.md) | Ephemeral capability-gated console access | CPS-403, CPS-1203 | Needs threat review |
-| [CPS-1703](../tasks/sprint-17/CPS-1703-curated-catalog-policy.md) | Approved image/flavor/AZ/volume-type/external-network selection | CPS-304, CPS-1203 | Ready |
+| [CPS-1703](../tasks/sprint-17/CPS-1703-curated-catalog-policy.md) | Approved image/flavor/AZ/volume-type/external-network selection | CPS-304, CPS-1203 | In progress |
 | [CPS-1704](../tasks/sprint-17/CPS-1704-network-guardrails.md) | CIDR, external-network, rule, quota, and ownership policy | CPS-902..905, CPS-1203 | Ready |
 
 ## Execution sequence
@@ -54,8 +54,8 @@ selecting only administrator-approved catalog and external-network resources.
 
 ## Review evidence
 
-- Policy/design approval:
+- Policy/design approval: provider metadata/tag convention selected;
+  `cmp-catalog-approved=true` is the admin marker.
 - Resize/rebuild recovery:
 - Console redaction:
 - Real-cloud acceptance:
-

@@ -139,6 +139,13 @@ class CapabilityUnsupportedError(DomainError):
     default_public_message = "Capability unsupported"
 
 
+class CatalogPolicyViolationError(DomainError):
+    status_code = 422
+    code = "CATALOG_POLICY_VIOLATION"
+    category = ErrorCategory.AUTHORIZATION
+    default_public_message = "Resource is not approved by catalog policy"
+
+
 class ProviderOperationError(DomainError):
     status_code = 502
     code = "PROVIDER_ERROR"
