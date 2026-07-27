@@ -1,6 +1,6 @@
 # CPS-1704 — Tenant network guardrails
 
-**Status:** Ready
+**Status:** In progress
 **Points:** 8
 **Depends on:** CPS-902..905, CPS-1202, CPS-1203
 **Paired task:** OPS-1704
@@ -18,6 +18,11 @@ external-network, and project boundaries.
   ranges with explicit administrative exceptions.
 - Recheck ownership and provider state in OPS immediately before mutation.
 
+Initial guardrails now fail closed for administrator-only external network
+mutation, malformed subnet CIDRs/gateways/allocation pools, and public ingress
+security rules. The remaining quota/overlap/provider-drift matrix is tracked
+for the next implementation increment.
+
 ## Required tests
 
 - CIDR overlap and malformed allocation pool.
@@ -30,4 +35,3 @@ external-network, and project boundaries.
 
 Unsafe requests publish no command and valid disposable topology still passes
 end-to-end cleanup.
-
