@@ -1,6 +1,6 @@
 # CPS-1502 — Volume create/update/extend/delete
 
-**Status:** Ready
+**Status:** Done
 **Points:** 8
 **Depends on:** CPS-1501
 **Paired task:** OPS-1502
@@ -32,4 +32,3 @@ durable, replay-safe operation family.
 
 A disposable volume completes the full lifecycle with deterministic operation
 history and verified cleanup.
-

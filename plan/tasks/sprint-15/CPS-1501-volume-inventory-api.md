@@ -1,6 +1,6 @@
 # CPS-1501 — Project-owned volume inventory and API
 
-**Status:** Ready
+**Status:** Done
 **Points:** 8
 **Depends on:** CPS-1202, CPS-1203
 **Paired task:** OPS-1501
@@ -32,4 +32,3 @@ query without cross-tenant leakage.
 
 Contract parity, migration lifecycle, repository/API tests, authorization, and
 real-cloud read-only inventory evidence pass.
-

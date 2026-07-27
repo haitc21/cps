@@ -162,6 +162,25 @@ def test_instance_relationships_are_typed_and_unique() -> None:
     )
 
 
+def test_volume_inventory_has_typed_storage_fields() -> None:
+    assert {
+        "volume_type_provider_resource_id",
+        "size_gib",
+        "bootable",
+        "root",
+        "encrypted",
+        "metadata_values",
+        "availability_zone",
+        "attachments",
+    } <= set(Volume.__table__.columns.keys())
+
+
+def test_volume_api_projection_exposes_availability_zone() -> None:
+    from cps.api.schemas.inventory import InventoryResourceView
+
+    assert "availability_zone" in InventoryResourceView.model_fields
+
+
 def test_inventory_sync_and_batch_constraints_are_named() -> None:
     assert "uq_inventory_batches_sync_resource_sequence" in {
         constraint.name for constraint in InventoryBatch.__table__.constraints

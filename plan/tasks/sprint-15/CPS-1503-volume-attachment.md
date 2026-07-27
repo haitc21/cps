@@ -1,6 +1,6 @@
 # CPS-1503 — Volume attach/detach
 
-**Status:** Ready
+**Status:** Done
 **Points:** 8
 **Depends on:** CPS-1501, CPS-403
 **Paired task:** OPS-1503
@@ -17,6 +17,11 @@ to the same authorized workspace and are in compatible states.
 - Capability-gate multiattach and normalize provider device/attachment IDs.
 - Refresh instance-volume relationships after terminal outcomes.
 
+Implementation evidence: CPS and OPS attachment contracts are covered by unit
+tests; provider-side project ownership checks are enforced before mutation; a
+real OpenStack attach/detach run completed with operation states `SUCCEEDED`,
+and terminal results now reconcile tracked `instance_volumes` relationships.
+
 ## Required tests
 
 - Same-project attach/detach succeeds; cross-project reference publishes
@@ -30,4 +35,3 @@ to the same authorized workspace and are in compatible states.
 
 Attachment inventory and operation history agree after success, redelivery,
 drift, and cleanup.
-

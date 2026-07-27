@@ -71,6 +71,15 @@ from cps.contracts.messages.types import (
     SUBNET_CREATE,
     SUBNET_DELETE,
     SUBNET_UPDATE,
+    VOLUME_ATTACH,
+    VOLUME_CREATE,
+    VOLUME_DELETE,
+    VOLUME_DETACH,
+    VOLUME_RESIZE,
+)
+from cps.contracts.messages.volume_operations import (
+    VolumeAttachmentOperationRequest,
+    VolumeOperationRequest,
 )
 from cps.domain.messaging.outbox import OutboxDraft
 from cps.domain.operations.create import create_operation_idempotent
@@ -708,8 +717,10 @@ class OperationApplicationService:
             "port_id": request.port_provider_resource_id,
         }
         parameters.update({key: value for key, value in relationship_parameters.items() if value})
+        operation_id = uuid.uuid5(connection.id, f"volume-operation:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "volume-command")
         payload = {
-            "operation_id": str(request.operation_id),
+            "operation_id": str(operation_id),
             "resource_type": request.resource_type.value,
             "operation": request.operation.value,
             "required_scope": request.required_scope.value,
@@ -743,6 +754,182 @@ class OperationApplicationService:
             payload=envelope.model_dump(mode="json"),
             correlation_id=correlation_id,
             occurred_at=datetime.now(UTC),
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        return to_view(operation)
+
+    async def create_volume_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: VolumeOperationRequest,
+    ) -> OperationView:
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+
+        message_type = {
+            "create": VOLUME_CREATE,
+            "resize": VOLUME_RESIZE,
+            "delete": VOLUME_DELETE,
+        }.get(request.operation.value)
+        if message_type is None:
+            raise ValueError("unsupported volume operation")
+
+        parameters = dict(request.parameters)
+        for field in (
+            "name",
+            "size_gib",
+            "volume_type_provider_resource_id",
+            "availability_zone",
+            "metadata",
+            "project_provider_resource_id",
+        ):
+            value = getattr(request, field)
+            if value is not None:
+                parameters[field] = value
+        if request.project_provider_resource_id:
+            parameters["ownership"] = {
+                "project_provider_resource_id": request.project_provider_resource_id
+            }
+
+        operation_id = uuid.uuid5(connection.id, f"volume-operation:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "volume-command")
+
+        payload = {
+            "operation_id": str(operation_id),
+            "resource_type": "volume",
+            "operation": request.operation.value,
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "provider_resource_id": request.provider_resource_id,
+            "parameters": parameters,
+        }
+        occurred_at = datetime.now(UTC)
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "causation_id": None,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        return to_view(operation)
+
+    async def create_volume_attachment_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: VolumeAttachmentOperationRequest,
+    ) -> OperationView:
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        message_type = VOLUME_ATTACH if request.operation.value == "attach" else VOLUME_DETACH
+        operation_id = uuid.uuid5(connection.id, f"volume-attachment:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "volume-attachment-command")
+        parameters = {
+            "server_id": request.instance_provider_resource_id,
+            "volume_id": request.volume_provider_resource_id,
+        }
+        if request.project_provider_resource_id:
+            parameters["project_provider_resource_id"] = request.project_provider_resource_id
+        payload = {
+            "operation_id": str(operation_id),
+            "resource_type": "volume-attachment",
+            "operation": request.operation.value,
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "parameters": parameters,
+        }
+        occurred_at = datetime.now(UTC)
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
         )
         try:
             operation = await create_operation_idempotent(

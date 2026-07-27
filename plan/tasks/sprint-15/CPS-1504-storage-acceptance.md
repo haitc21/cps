@@ -1,6 +1,6 @@
 # CPS-1504 — Storage vertical acceptance
 
-**Status:** Ready
+**Status:** Done
 **Points:** 5
 **Depends on:** CPS-1501..1503, OPS-1501..1503
 
@@ -20,3 +20,8 @@ delete, and verify tombstone plus provider cleanup.
 - Provider service/version/capability evidence is recorded.
 - Every created resource ID and cleanup result is recorded without secrets.
 
+Acceptance evidence: disposable OpenStack volume/server resources were created,
+attached, detached, resized, and deleted through CPS/OPS; operation polling
+returned `SUCCEEDED`; replay returned the same operation ID; malformed requests
+returned `422`; cleanup verification returned empty all-project volume/server
+lists. CPS and OPS suites, lint, and Compose health checks are green.

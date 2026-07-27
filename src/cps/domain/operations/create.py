@@ -39,8 +39,8 @@ async def create_operation_idempotent(
     if (outbox_repository is None) != (outbox_draft is None):
         msg = "outbox repository and draft must be provided together"
         raise OperationPersistenceError(msg)
-    if operation_id is not None and operation_id.version != 7:
-        msg = "operation id must be UUIDv7"
+    if operation_id is not None and operation_id.version not in {5, 7}:
+        msg = "operation id must be UUIDv5 or UUIDv7"
         raise OperationPersistenceError(msg)
     fingerprint = canonical_fingerprint(request_payload)
     if timeout_at is None:

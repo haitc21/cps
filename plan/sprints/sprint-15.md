@@ -1,6 +1,6 @@
 # Sprint 15 — CMP user block-storage lifecycle
 
-**Status:** Proposed — ready for refinement
+**Status:** Done
 **Dates:** TBD at Sprint Planning
 **Capacity:** 29 CPS points
 **Sprint Goal:** An authorized workspace user can create, attach, detach,
@@ -13,19 +13,19 @@ operations.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1501 Project-owned volume inventory and API | 8 | CPS | OPS-1501 | Ready |
-| CPS-1502 Volume create/update/extend/delete | 8 | CPS | OPS-1502 | Ready |
-| CPS-1503 Volume attach/detach | 8 | CPS | OPS-1503 | Ready |
-| CPS-1504 Storage vertical acceptance | 5 | CPS/OPS | OPS-1501..1503 | Ready |
+| CPS-1501 Project-owned volume inventory and API | 8 | CPS | OPS-1501 | Done |
+| CPS-1502 Volume create/update/extend/delete | 8 | CPS | OPS-1502 | Done |
+| CPS-1503 Volume attach/detach | 8 | CPS | OPS-1503 | Done |
+| CPS-1504 Storage vertical acceptance | 5 | CPS/OPS | OPS-1501..1503 | Done |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1501](../tasks/sprint-15/CPS-1501-volume-inventory-api.md) | Typed project-owned volume inventory and query APIs | CPS-1202, CPS-1203 | Ready |
-| [CPS-1502](../tasks/sprint-15/CPS-1502-volume-lifecycle.md) | Durable volume create/update/extend/delete | CPS-1501 | Ready |
-| [CPS-1503](../tasks/sprint-15/CPS-1503-volume-attachment.md) | Replay-safe attach/detach relationships | CPS-1501, CPS-403 | Ready |
-| [CPS-1504](../tasks/sprint-15/CPS-1504-storage-acceptance.md) | Restart/redelivery and real-cloud storage acceptance | CPS-1501..1503 | Ready |
+| [CPS-1501](../tasks/sprint-15/CPS-1501-volume-inventory-api.md) | Typed project-owned volume inventory and query APIs | CPS-1202, CPS-1203 | Done |
+| [CPS-1502](../tasks/sprint-15/CPS-1502-volume-lifecycle.md) | Durable volume create/update/extend/delete | CPS-1501 | Done |
+| [CPS-1503](../tasks/sprint-15/CPS-1503-volume-attachment.md) | Replay-safe attach/detach relationships | CPS-1501, CPS-403 | Done |
+| [CPS-1504](../tasks/sprint-15/CPS-1504-storage-acceptance.md) | Restart/redelivery and real-cloud storage acceptance | CPS-1501..1503 | Done |
 
 ## Execution sequence
 
@@ -57,4 +57,3 @@ operations.
 - Migration lifecycle:
 - Restart/redelivery:
 - Real-cloud resource IDs and cleanup:
-

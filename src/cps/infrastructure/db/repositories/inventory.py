@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -240,6 +240,58 @@ class InventoryRepository:
             )
         return instance_row
 
+    async def apply_volume_attachment_result(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        operation: str,
+        instance_provider_resource_id: str,
+        volume_provider_resource_id: str,
+        resource: dict[str, Any] | None = None,
+    ) -> bool:
+        """Project a terminal attachment event onto tracked inventory rows.
+
+        Provider-created resources may arrive before a full inventory sync. In
+        that case there is nothing safe to relate yet; the next refresh owns
+        reconciliation and this method deliberately returns ``False``.
+        """
+        instance = await self._session.scalar(
+            select(Instance).where(
+                Instance.provider_connection_id == provider_connection_id,
+                Instance.provider_resource_id == instance_provider_resource_id,
+                Instance.lifecycle_state != "DELETED",
+            )
+        )
+        volume = await self._session.scalar(
+            select(Volume).where(
+                Volume.provider_connection_id == provider_connection_id,
+                Volume.provider_resource_id == volume_provider_resource_id,
+                Volume.lifecycle_state != "DELETED",
+            )
+        )
+        if instance is None or volume is None:
+            return False
+        relation = {
+            "instance_id": instance.id,
+            "volume_id": volume.id,
+            "provider_volume_resource_id": volume.provider_resource_id,
+            "device": (resource or {}).get("device"),
+            "boot_index": (resource or {}).get("boot_index"),
+            "delete_on_termination": (resource or {}).get("delete_on_termination"),
+        }
+        if operation == "attach":
+            await self._session.merge(InstanceVolume(**relation))
+        elif operation == "detach":
+            await self._session.execute(
+                delete(InstanceVolume).where(
+                    InstanceVolume.instance_id == instance.id,
+                    InstanceVolume.volume_id == volume.id,
+                )
+            )
+        else:
+            raise InventoryPersistenceError("unsupported volume attachment operation")
+        return True
+
     async def list_resources(
         self,
         resource_type: str,
@@ -248,6 +300,7 @@ class InventoryRepository:
         limit: int,
         provider_connection_id: uuid.UUID | None = None,
         provider_resource_id: str | None = None,
+        project_provider_resource_id: str | None = None,
         name: str | None = None,
         include_deleted: bool = False,
         sort: str = "created_at",
@@ -262,6 +315,10 @@ class InventoryRepository:
             filters.append(model.provider_connection_id == provider_connection_id)
         if provider_resource_id is not None:
             filters.append(model.provider_resource_id == provider_resource_id)
+        if project_provider_resource_id is not None and hasattr(
+            model, "project_provider_resource_id"
+        ):
+            filters.append(model.project_provider_resource_id == project_provider_resource_id)
         if name is not None:
             filters.append(model.name.ilike(f"%{name}%"))
         if not include_deleted:
@@ -545,6 +602,21 @@ class InventoryRepository:
                 in_use=item.get("in_use", attrs.get("in_use")),
                 unlimited=unlimited,
             )
+        if model is Volume:
+            values.update(
+                size_gib=item.get("size_gib", attrs.get("size")),
+                volume_type=item.get("volume_type", attrs.get("volume_type")),
+                volume_type_provider_resource_id=item.get(
+                    "volume_type_provider_resource_id", attrs.get("volume_type")
+                ),
+                bootable=item.get("bootable", attrs.get("bootable")),
+                root=item.get("root", attrs.get("root")),
+                encrypted=item.get("encrypted", attrs.get("encrypted")),
+                multiattach=item.get("multiattach", attrs.get("multiattach")),
+                availability_zone=item.get("availability_zone", attrs.get("availability_zone")),
+                metadata_values=item.get("metadata", attrs.get("metadata", {})),
+                attachments=item.get("attachments", attrs.get("attachments", [])),
+            )
         statement = pg_insert(model).values(**values)
         conflict_set: dict[str, Any] = {
             "name": statement.excluded.name,
@@ -586,7 +658,7 @@ class InventoryRepository:
             )
         elif model is IdentityDomain:
             conflict_set["enabled"] = statement.excluded.enabled
-        elif model in (RoleAssignment, Quota):
+        elif model in (RoleAssignment, Quota, Volume):
             # Keep all typed fields synchronized while preserving the generic
             # provider attributes used by older consumers.
             typed = {

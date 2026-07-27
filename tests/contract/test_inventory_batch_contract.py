@@ -72,3 +72,32 @@ def test_unsupported_collection_is_explicit_and_must_be_empty() -> None:
     assert payload.collection_status == "SKIPPED_UNSUPPORTED"
     with pytest.raises(ValidationError, match="unsupported collection"):
         InventoryBatchPayload.model_validate(_payload(collection_status="SKIPPED_UNSUPPORTED"))
+
+
+def test_volume_batch_accepts_typed_inventory_fields() -> None:
+    item = {
+        "provider_resource_id": "volume-1",
+        "project_provider_resource_id": "project-1",
+        "name": "data",
+        "provider_status": "available",
+        "size_gib": 20,
+        "volume_type_provider_resource_id": "fast-1",
+        "bootable": False,
+        "root": False,
+        "encrypted": True,
+        "metadata": {"tier": "gold"},
+        "availability_zone": "nova",
+        "attachments": [{"server_id": "server-1", "device": "/dev/vdb"}],
+    }
+    payload = InventoryBatchPayload.model_validate(
+        _payload(
+            resource_type="volume",
+            items=[item],
+            item_count=1,
+            checksum=compute_inventory_checksum([item]),
+        )
+    )
+
+    assert payload.items[0].size_gib == 20
+    assert payload.items[0].volume_type_provider_resource_id == "fast-1"
+    assert payload.items[0].attachments == [{"server_id": "server-1", "device": "/dev/vdb"}]

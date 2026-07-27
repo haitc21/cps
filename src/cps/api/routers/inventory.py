@@ -26,6 +26,7 @@ async def list_inventory(
     limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
     provider_connection_id: uuid.UUID | None = None,
     provider_resource_id: str | None = None,
+    project_provider_resource_id: str | None = Query(default=None, max_length=255),  # noqa: B008
     name: str | None = Query(default=None, max_length=255),  # noqa: B008
     include_deleted: bool = False,
     sort: str = Query(default="created_at", pattern="^(name|created_at|updated_at)$"),  # noqa: B008
@@ -39,6 +40,7 @@ async def list_inventory(
             limit=limit,
             provider_connection_id=provider_connection_id,
             provider_resource_id=provider_resource_id,
+            project_provider_resource_id=project_provider_resource_id,
             name=name,
             include_deleted=include_deleted,
             sort=sort,

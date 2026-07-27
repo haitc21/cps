@@ -128,7 +128,7 @@ def test_outbox_draft_rejects_top_level_identity_mismatch_with_valid_envelope(
 
 @pytest.mark.asyncio
 async def test_supplied_uuidv4_operation_id_is_rejected() -> None:
-    with pytest.raises(OperationPersistenceError, match="operation id must be UUIDv7"):
+    with pytest.raises(OperationPersistenceError, match="operation id must be UUIDv5 or UUIDv7"):
         await create_operation_idempotent(
             object(),  # type: ignore[arg-type]
             provider_connection_id=new_uuid7(),

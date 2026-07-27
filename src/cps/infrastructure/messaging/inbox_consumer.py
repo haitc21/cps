@@ -409,6 +409,20 @@ class EventInboxConsumer:
                             ports=result.get("ports", []),
                             volumes=result.get("volumes", []),
                         )
+                    if result.get("resource_type") == "volume-attachment" and result.get(
+                        "operation"
+                    ) in {"attach", "detach"}:
+                        parameters = result.get("parameters", {})
+                        if isinstance(parameters, dict):
+                            await uow.inventory.apply_volume_attachment_result(
+                                provider_connection_id=envelope.provider_connection_id,
+                                operation=result["operation"],
+                                instance_provider_resource_id=parameters.get("server_id", ""),
+                                volume_provider_resource_id=parameters.get("volume_id", ""),
+                                resource=result.get("resource")
+                                if isinstance(result.get("resource"), dict)
+                                else None,
+                            )
 
             marked = await uow.inbox.mark_processed(inbox_id, now=now)
 

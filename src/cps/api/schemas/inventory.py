@@ -65,6 +65,15 @@ class InventoryResourceView(BaseModel):
     port_provider_resource_id: str | None = None
     router_provider_resource_id: str | None = None
     status: str | None = None
+    project_provider_resource_id: str | None = None
+    volume_type_provider_resource_id: str | None = None
+    size_gib: int | None = None
+    bootable: bool | None = None
+    root: bool | None = None
+    encrypted: bool | None = None
+    availability_zone: str | None = None
+    metadata_values: dict[str, Any] | None = None
+    attachments: list[dict[str, Any]] | None = None
     version: int
     created_at: datetime
     updated_at: datetime

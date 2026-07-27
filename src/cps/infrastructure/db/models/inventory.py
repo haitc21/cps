@@ -277,10 +277,15 @@ class Volume(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
     size_gib: Mapped[int | None] = mapped_column(Integer, nullable=True)
     volume_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    volume_type_provider_resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     bootable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    root: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     encrypted: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     multiattach: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     availability_zone: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    metadata_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default="{}"
+    )
     attachments: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="[]")
 
 

@@ -46,6 +46,38 @@ def _payload(sync_id: uuid.UUID, *, name: str = "server") -> InventoryBatchPaylo
     )
 
 
+def _volume_payload(sync_id: uuid.UUID) -> InventoryBatchPayload:
+    items = [
+        {
+            "provider_resource_id": "volume-1",
+            "project_provider_resource_id": "project-1",
+            "name": "data",
+            "provider_status": "available",
+            "size_gib": 20,
+            "volume_type_provider_resource_id": "type-1",
+            "bootable": False,
+            "root": False,
+            "encrypted": True,
+            "metadata": {"tier": "gold"},
+            "availability_zone": "nova",
+            "attachments": [{"server_id": "server-1", "device": "/dev/vdb"}],
+            "attributes": {},
+        }
+    ]
+    return InventoryBatchPayload.model_validate(
+        {
+            "sync_id": str(sync_id),
+            "resource_type": "volume",
+            "sequence": 1,
+            "is_last": True,
+            "collection_status": "COMPLETE",
+            "item_count": 1,
+            "checksum": compute_inventory_checksum(items),
+            "items": items,
+        }
+    )
+
+
 async def _seed_connection(uow: SqlAlchemyUnitOfWork) -> tuple[uuid.UUID, uuid.UUID]:
     provider_id = new_uuid7()
     connection_id = new_uuid7()
@@ -158,3 +190,50 @@ async def test_inventory_batch_is_idempotent_and_upserts_by_provider_identity(
         )
         with pytest.raises(InventorySyncIncompleteError):
             await second.inventory.finalize_full_sync(incomplete.id)
+
+
+@pytest.mark.asyncio
+async def test_volume_inventory_persists_typed_fields_and_project_filter(
+    db_session_factory,
+) -> None:
+    sync_id = new_uuid7()
+    first = SqlAlchemyUnitOfWork(db_session_factory)
+    async with first:
+        connection_id, operation_id = await _seed_connection(first)
+        sync = await first.inventory.create_sync(
+            sync_id=sync_id,
+            operation_id=operation_id,
+            provider_connection_id=connection_id,
+            sync_type="FULL",
+            expected_collections=["volume"],
+        )
+        await first.inventory.persist_batch(
+            sync=sync,
+            message_id=new_uuid7(),
+            provider_connection_id=connection_id,
+            batch=_volume_payload(sync_id),
+        )
+        await first.commit()
+
+    second = SqlAlchemyUnitOfWork(db_session_factory)
+    async with second:
+        rows, total = await second.inventory.list_resources(
+            "volume",
+            offset=0,
+            limit=50,
+            project_provider_resource_id="project-1",
+        )
+        assert total == 1
+        assert rows[0].size_gib == 20
+        assert rows[0].volume_type_provider_resource_id == "type-1"
+        assert rows[0].root is False
+        assert rows[0].metadata_values == {"tier": "gold"}
+        assert rows[0].attachments == [{"server_id": "server-1", "device": "/dev/vdb"}]
+        foreign_rows, foreign_total = await second.inventory.list_resources(
+            "volume",
+            offset=0,
+            limit=50,
+            project_provider_resource_id="other-project",
+        )
+        assert foreign_rows == []
+        assert foreign_total == 0
