@@ -1,6 +1,6 @@
 # CPS-1702 — Instance console access
 
-**Status:** Needs threat review
+**Status:** Deferred — chưa ưu tiên trong Sprint 17
 **Points:** 5
 **Depends on:** CPS-403, CPS-1203
 **Paired task:** OPS-1702
@@ -29,3 +29,9 @@ bearer URL or token.
 Threat review approves the response boundary and live access expires as
 documented.
 
+## Deferred note
+
+Console access chưa nằm trong ưu tiên hiện tại. Khi kích hoạt lại, task phải
+hoàn thiện threat review và ephemeral response boundary trước khi triển khai;
+console URL/token được xem như bearer secret và không được lưu trong operation
+history, database hoặc log.

@@ -13,7 +13,7 @@ selecting only administrator-approved catalog and external-network resources.
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
 | CPS-1701 Instance resize and rebuild | 13 | CPS | OPS-1701 | In progress |
-| CPS-1702 Instance console access | 5 | CPS | OPS-1702 | Needs threat review |
+| CPS-1702 Instance console access | 5 | CPS | OPS-1702 | Deferred — chưa ưu tiên |
 | CPS-1703 Admin-curated resource catalog policy | 8 | CPS | OPS-1703 | In progress — tag policy selected |
 | CPS-1704 Tenant network guardrails | 8 | CPS | OPS-1704 | In progress |
 
@@ -22,13 +22,13 @@ selecting only administrator-approved catalog and external-network resources.
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
 | [CPS-1701](../tasks/sprint-17/CPS-1701-instance-resize-rebuild.md) | Resize confirm/revert and policy-safe rebuild | CPS-403, CPS-1203 | In progress |
-| [CPS-1702](../tasks/sprint-17/CPS-1702-instance-console.md) | Ephemeral capability-gated console access | CPS-403, CPS-1203 | Needs threat review |
+| [CPS-1702](../tasks/sprint-17/CPS-1702-instance-console.md) | Ephemeral capability-gated console access | CPS-403, CPS-1203 | Deferred — chưa ưu tiên |
 | [CPS-1703](../tasks/sprint-17/CPS-1703-curated-catalog-policy.md) | Approved image/flavor/AZ/volume-type/external-network selection | CPS-304, CPS-1203 | In progress |
 | [CPS-1704](../tasks/sprint-17/CPS-1704-network-guardrails.md) | CIDR, external-network, rule, quota, and ownership policy | CPS-902..905, CPS-1203 | In progress |
 
 ## Execution sequence
 
-1. Approve console secret handling and curated-catalog policy.
+1. Record console access as deferred and approve curated-catalog policy.
 2. Deliver catalog filtering and reference validation before VM changes.
 3. Implement resize with confirm/revert recovery.
 4. Implement rebuild using approved images and existing storage/network policy.
@@ -48,7 +48,7 @@ selecting only administrator-approved catalog and external-network resources.
 
 | Risk/impediment | Owner | Mitigation | Status |
 |---|---|---|---|
-| Console URL behaves like a bearer secret | CPS/OPS | Non-durable response port, TTL, redaction, threat review | Open |
+| Console URL behaves like a bearer secret | CPS/OPS | Deferred; require non-durable response port, TTL, redaction, and threat review before activation | Deferred |
 | Resize needs user confirmation | CPS/OPS | Explicit confirm/revert state machine and timeout policy | Open |
 | Admin catalog policy source is undefined | Product/CPS | Approve metadata/tag/DB allow-list source before coding | Open |
 
