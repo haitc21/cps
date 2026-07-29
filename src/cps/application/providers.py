@@ -338,7 +338,7 @@ class ProviderService:
             except ProviderPersistenceError as exc:
                 raise ProviderNotFoundError from exc
 
-        if aggregate_changed and not provider_metadata_changed:
+        if aggregate_changed and not provider_metadata_changed and not credential_changed:
             try:
                 provider = await self._repository.increment_provider_version(
                     provider_id, expected_version=expected_version
@@ -347,5 +347,23 @@ class ProviderService:
                 raise VersionConflictError from exc
             except ProviderPersistenceError as exc:
                 raise ProviderNotFoundError from exc
+
+        final_aggregate = await self._repository.get_provider_aggregate(provider_id)
+        if final_aggregate is not None:
+            provider, connection = final_aggregate[:2]
+            if len(final_aggregate) == 3:
+                legacy_credential = final_aggregate[2]
+                for field in (
+                    "user_domain_name",
+                    "username_ciphertext",
+                    "username_nonce",
+                    "password_ciphertext",
+                    "password_nonce",
+                    "encryption_key_version",
+                ):
+                    if hasattr(legacy_credential, field):
+                        setattr(provider, field, getattr(legacy_credential, field))
+                if hasattr(legacy_credential, "id"):
+                    provider._legacy_credential_id = legacy_credential.id
 
         return to_view(provider, connection=connection)

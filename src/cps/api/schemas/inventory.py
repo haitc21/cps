@@ -27,6 +27,9 @@ class InventoryResourceView(BaseModel):
     domain_name: str | None = None
     owner_domain_provider_resource_id: str | None = None
     owner_project_provider_resource_id: str | None = None
+    org_id: str | None = None
+    workspace_id: str | None = None
+    ownership_state: str | None = None
     enabled: bool | None = None
     principal_type: str | None = None
     principal_provider_resource_id: str | None = None

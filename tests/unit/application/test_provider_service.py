@@ -229,6 +229,92 @@ async def test_update_can_rotate_password_without_public_exposure() -> None:
 
 
 @pytest.mark.asyncio
+async def test_password_rotation_with_aggregate_credential_does_not_double_increment() -> None:
+    provider_id = uuid.uuid4()
+    connection_id = uuid.uuid4()
+    cipher = _cipher()
+    encrypted_password = cipher.encrypt_password(
+        credential_id=provider_id,
+        plaintext=_PASSWORD,
+        key_version=_KEY_VERSION,
+    )
+    encrypted_username = cipher.encrypt_secret(
+        credential_id=provider_id,
+        field_label="username",
+        plaintext=_USERNAME,
+        key_version=_KEY_VERSION,
+    )
+    now = datetime.now(UTC)
+    provider_version = {"value": 3}
+    increment_calls = {"count": 0}
+    provider = SimpleNamespace(
+        id=provider_id,
+        name="lab-openstack",
+        provider_type="OPENSTACK",
+        description=None,
+        status=ProviderStatus.ACTIVE,
+        version=provider_version["value"],
+        created_at=now,
+        updated_at=now,
+        user_domain_name="Default",
+        username_ciphertext=encrypted_username.ciphertext,
+        username_nonce=encrypted_username.nonce,
+        password_ciphertext=encrypted_password.ciphertext,
+        password_nonce=encrypted_password.nonce,
+        encryption_key_version=_KEY_VERSION,
+    )
+    connection = SimpleNamespace(
+        id=connection_id,
+        provider_id=provider_id,
+        scope_kind=ConnectionScopeKind.SYSTEM,
+        auth_url=_AUTH_URL,
+        region_name="RegionOne",
+        interface="public",
+        verify_tls=True,
+        ca_cert_pem=None,
+        status=ConnectionStatus.VALID,
+        version=2,
+    )
+
+    class Repository:
+        async def get_provider_aggregate(self, _provider_id: uuid.UUID):
+            provider.version = provider_version["value"]
+            return provider, connection
+
+        async def provider_name_exists(self, _name: str, *, exclude_id=None) -> bool:
+            return False
+
+        async def update_provider_credential(
+            self, _provider_id, *, expected_version, encrypted_username, encrypted_password, **_
+        ):
+            assert expected_version == provider_version["value"]
+            provider_version["value"] += 1
+            provider.version = provider_version["value"]
+            return provider
+
+        async def update_connection(self, _connection_id, *, expected_version, values):
+            connection.status = values["status"]
+            return connection
+
+        async def increment_provider_version(self, _provider_id, *, expected_version):
+            increment_calls["count"] += 1
+            provider_version["value"] += 1
+            provider.version = provider_version["value"]
+            return provider
+
+    service = ProviderService(Repository(), cipher, _KEY_VERSION)
+    view = await service.update(
+        provider_id,
+        3,
+        ProviderPatch.model_validate(
+            {"expected_version": 3, "password": "rotated-password"}  # pragma: allowlist secret
+        ),
+    )
+    assert view.version == 4
+    assert increment_calls["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_metadata_only_update_increments_provider_version_once() -> None:
     provider_id = uuid.uuid4()
     credential_id = uuid.uuid4()

@@ -21,6 +21,7 @@ authorization, migration, restart, redelivery, provider drift, and cleanup.
 |---|---|---|---|
 | [CPS-1801](../tasks/sprint-18/CPS-1801-convergence-recovery.md) | Failure matrix and cross-resource reconciliation | CPS-E15..E17 | In progress |
 | [CPS-1802](../tasks/sprint-18/CPS-1802-release-acceptance.md) | Migration, operations, compatibility, E2E, cleanup | CPS-1801 | In progress |
+| [CPS-1803](../tasks/sprint-18/CPS-1803-openstack-lab-instance-access-followups.md) | Lab E2E SSH: FIP associate, router+FIP script, hypervisor desync | CPS-1801, OPS-1803 | Open — deferred |
 
 ## Execution sequence
 
@@ -46,6 +47,7 @@ authorization, migration, restart, redelivery, provider drift, and cleanup.
 | Cleanup failure leaves billable resources | Team | Dependency-ordered cleanup ledger and manual runbook | Open |
 | Provider capabilities vary | OPS | Recorded capability matrix and explicit skips | Open |
 | Recovery matrix exceeds sprint capacity | Product | Must scenarios first; split compatibility breadth if needed | Open |
+| OpenStack lab: QEMU tcg crash on nested compute; CPS FIP associate fails; E2E lacks router+FIP/SSH gate | CPS/OPS/Lab | [CPS-1803](../tasks/sprint-18/CPS-1803-openstack-lab-instance-access-followups.md), [OPS-1803](../../ops/plan/tasks/sprint-18/OPS-1803-nested-lab-hypervisor-fip-fixes.md) | Open |
 
 ## Review evidence
 

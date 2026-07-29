@@ -750,9 +750,6 @@ class InventoryRepository:
                     ),
                     "enabled": statement.excluded.enabled,
                     "provider_id": statement.excluded.provider_id,
-                    "org_id": statement.excluded.org_id,
-                    "workspace_id": statement.excluded.workspace_id,
-                    "ownership_state": statement.excluded.ownership_state,
                 }
             )
         elif hasattr(model, "project_id") and model is not Quota:
