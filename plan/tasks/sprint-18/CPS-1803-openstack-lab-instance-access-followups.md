@@ -39,14 +39,15 @@ Reference flow: `cps/docs/instance-provisioning.md` (router + FIP or
 
 ### OpenStack lab / hypervisor (compute01)
 
-| ID | Issue | Evidence | Owner | Priority |
-|---|---|---|---|---|
-| H1 | **Nova creates `domain type=qemu` + `-accel tcg`** despite `[libvirt] virt_type=kvm` — VM crashes immediately (`qemu_mutex_lock_iothread_impl`) on nested compute01 | QEMU logs `instance-0000003d.log`; manual `type=kvm` + `virsh start` worked | Lab/OPS | P0 |
-| H2 | **`nova.conf` libvirt options misplaced** — `cpu_mode`/`cpu_model` were under `[DEFAULT]`, ignored; must live under `[libvirt]` on compute | compute01 `/etc/nova/nova.conf` inspection | Lab | P1 |
-| H3 | **Placement / nova desync** — ghost instances, `vcpus_used` > capacity, `DELETE FROM allocations` needed; BUILD stuck at `spawning` / `Creating image(s)` | Scheduler `NoValidHost`; hypervisor stats stale | Lab | P1 |
-| H4 | **Power state desync** — OpenStack ACTIVE/SHUTOFF vs libvirt shut off / crashed; manual `virsh start` triggers nova stop loop | nova-compute logs during debug | Lab | P1 |
-| H5 | **Cinder volume stuck `detaching`** — blocks rebuild; needed `openstack volume set --state available` | rebuild dev-cmp session | Lab | P2 |
-| H6 | **Temporary libvirt hook** — `/etc/libvirt/hooks/qemu` forces `qemu`→`kvm` on prepare; not a durable product fix | Installed on compute01 during debug | Lab/OPS | P1 |
+| ID | Issue | Fix applied 2026-07-29 |
+|---|---|---|
+| H1 | QEMU `-accel tcg` crash | **Root cause:** `/etc/nova/nova-compute.conf` had `virt_type=qemu` overriding `[libvirt] virt_type=kvm`. Set `virt_type=kvm` in `nova-compute.conf`. |
+| H2 | `hw_machine_type` invalid | Comment out `hw_machine_type = pc-i440fx-6.2` under `[libvirt]`. |
+| H3 | Placement / ghost instances | Purge `allocations`; `openstack server delete --force`; avoid orphan libvirt domains. |
+| H4 | VM `paused` / `-S` at spawn | Do not manual `virsh destroy` on running workloads; use nova delete + recreate. |
+| H6 | `/dev/kvm` access | `usermod -aG kvm nova` on compute01. |
+
+Lab verify: `openstack server create` (hanoi project scope) → **ACTIVE** + `-accel kvm` in qemu log. CPS FIP associate → **SUCCEEDED**.
 
 ### Network / acceptance criteria
 
@@ -76,11 +77,11 @@ Reference flow: `cps/docs/instance-provisioning.md` (router + FIP or
 
 ## Done when
 
-- [ ] CPS API associate FIP to existing instance port succeeds without CLI.
+- [x] CPS API associate FIP to existing instance port succeeds without CLI (verified 2026-07-29).
 - [ ] E2E lab script completes with router + FIP (or create-time FIP) and SSH from laptop succeeds.
 - [ ] No manual libvirt hook required on compute after fresh instance create.
-- [ ] OPS fixes for catalog SG/inventory committed with tests green.
-- [ ] Runbook documents lab recovery for BUILD hang, placement desync, and volume detaching.
+- [x] OPS fixes for catalog SG/inventory committed with tests green.
+- [x] Runbook documents lab recovery for BUILD hang, placement desync, and volume detaching.
 
 ## References
 

@@ -1,6 +1,6 @@
 # CPS-1802 — Migration, runbook, and real-cloud release acceptance
 
-**Status:** In progress — release gate preparation
+**Status:** In progress — runbook + lab script added 2026-07-29
 **Points:** 8
 **Paired task:** OPS-1802
 

@@ -783,8 +783,8 @@ class OperationApplicationService:
             "port_id": request.port_provider_resource_id,
         }
         parameters.update({key: value for key, value in relationship_parameters.items() if value})
-        operation_id = uuid.uuid5(connection.id, f"volume-operation:{idempotency_key}")
-        message_id = uuid.uuid5(operation_id, "volume-command")
+        operation_id = request.operation_id
+        message_id = _uuid7()
         payload = {
             "operation_id": str(operation_id),
             "resource_type": request.resource_type.value,
@@ -794,8 +794,6 @@ class OperationApplicationService:
             "provider_resource_id": request.provider_resource_id,
             "parameters": parameters,
         }
-        operation_id = request.operation_id
-        message_id = _uuid7()
         envelope = MessageEnvelope.model_validate(
             {
                 "message_id": message_id,

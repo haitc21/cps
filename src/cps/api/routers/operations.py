@@ -70,8 +70,8 @@ async def network_operation(
         from cps.contracts.errors import InvalidRequestError
 
         raise InvalidRequestError("Idempotency-Key is required")
-    typed = NetworkOperationRequest(
-        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    typed = NetworkOperationRequest.model_validate(
+        {"operation_id": new_uuid7(), "provider_connection_id": connection_id, **body.model_dump()}
     )
     operation = await _service(uow).create_network_operation(
         connection_id,

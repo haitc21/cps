@@ -88,6 +88,12 @@ class NetworkOperationRequest(BaseModel):
         ):
             if not self.network_provider_resource_id:
                 raise ValueError("floating IP allocation requires external network")
+        if (
+            self.resource_type is NetworkResourceType.FLOATING_IP
+            and self.operation is NetworkOperation.ASSOCIATE
+        ):
+            if not self.port_provider_resource_id:
+                raise ValueError("floating IP associate requires port_provider_resource_id")
         return self
 
 

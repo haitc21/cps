@@ -1,6 +1,6 @@
 # CPS-1801 — Cross-resource convergence and recovery
 
-**Status:** In progress
+**Status:** In progress — FIP associate + idempotency fixed 2026-07-29
 **Points:** 13
 **Paired task:** OPS-1801
 

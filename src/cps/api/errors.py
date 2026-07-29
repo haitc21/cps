@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from cps.contracts.errors import CommonError, DomainError, ErrorCategory
 
@@ -23,6 +24,16 @@ def _response(request: Request, error: CommonError, status_code: int) -> JSONRes
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, _exc: RequestValidationError) -> JSONResponse:
+        error = CommonError(
+            code="INVALID_REQUEST",
+            message="Request validation failed",
+            category=ErrorCategory.VALIDATION,
+            retryable=False,
+        )
+        return _response(request, error, 422)
+
+    @app.exception_handler(ValidationError)
+    async def contract_validation_handler(request: Request, _exc: ValidationError) -> JSONResponse:
         error = CommonError(
             code="INVALID_REQUEST",
             message="Request validation failed",
