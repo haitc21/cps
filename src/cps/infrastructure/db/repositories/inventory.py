@@ -335,6 +335,48 @@ class InventoryRepository:
             )
         return instance_row
 
+    async def persist_snapshot_result(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        sync_id: uuid.UUID | None,
+        snapshot: dict[str, Any],
+    ) -> VolumeSnapshot:
+        provider_resource_id = snapshot.get("provider_resource_id")
+        name = snapshot.get("name")
+        if not isinstance(provider_resource_id, str) or not isinstance(name, str):
+            raise InventoryPersistenceError("snapshot result identity is invalid")
+        attributes = snapshot.get("attributes", {})
+        if not isinstance(attributes, dict):
+            attributes = {}
+        metadata = snapshot.get("metadata")
+        if not isinstance(metadata, dict):
+            raw_metadata = attributes.get("metadata")
+            metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+        await self._upsert_resource(
+            model=VolumeSnapshot,
+            provider_connection_id=provider_connection_id,
+            sync_id=sync_id or uuid.uuid4(),
+            item={
+                "provider_resource_id": provider_resource_id,
+                "name": name,
+                "provider_status": snapshot.get("provider_status"),
+                "lifecycle_state": snapshot.get("lifecycle_state", "ACTIVE"),
+                "project_provider_resource_id": snapshot.get("project_provider_resource_id"),
+                "volume_provider_resource_id": snapshot.get("volume_provider_resource_id"),
+                "snapshot_size_gib": snapshot.get("snapshot_size_gib", snapshot.get("size")),
+                "metadata": metadata,
+                "attributes": attributes,
+            },
+        )
+        result = await self._session.execute(
+            select(VolumeSnapshot).where(
+                VolumeSnapshot.provider_connection_id == provider_connection_id,
+                VolumeSnapshot.provider_resource_id == provider_resource_id,
+            )
+        )
+        return result.scalar_one()
+
     async def apply_volume_attachment_result(
         self,
         *,

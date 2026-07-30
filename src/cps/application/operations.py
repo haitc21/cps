@@ -470,6 +470,37 @@ class OperationApplicationService:
             resource_type, connection_id, provider_resource_id
         )
 
+    async def _volume_snapshot_lifecycle_allowed(
+        self,
+        connection_id: uuid.UUID,
+        provider_resource_id: str,
+        *,
+        project_provider_resource_id: str | None = None,
+    ) -> bool:
+        if self._inventory is None:
+            return False
+        if await self._inventory.resource_belongs_to_connection(
+            "volume-snapshot", connection_id, provider_resource_id
+        ):
+            if project_provider_resource_id is not None:
+                rows, _ = await self._inventory.list_resources(
+                    "volume-snapshot",
+                    provider_connection_id=connection_id,
+                    provider_resource_id=provider_resource_id,
+                    limit=1,
+                    offset=0,
+                )
+                if rows:
+                    row_project = rows[0].project_provider_resource_id
+                    if row_project is not None and row_project != project_provider_resource_id:
+                        return False
+            return True
+        return await self._repository.cps_created_volume_snapshot_exists(
+            provider_connection_id=connection_id,
+            provider_resource_id=provider_resource_id,
+            project_provider_resource_id=project_provider_resource_id,
+        )
+
     async def create_instance_action(
         self,
         connection_id: uuid.UUID,
@@ -1032,10 +1063,12 @@ class OperationApplicationService:
         if connection is None or request.provider_connection_id != connection.id:
             raise ProviderConnectionNotFoundError
         if request.operation.value in {"update", "delete"}:
-            if self._inventory is None or not request.provider_resource_id:
+            if not request.provider_resource_id:
                 raise ProviderConnectionNotFoundError
-            if not await self._inventory.resource_belongs_to_connection(
-                "volume-snapshot", connection.id, request.provider_resource_id
+            if not await self._volume_snapshot_lifecycle_allowed(
+                connection.id,
+                request.provider_resource_id,
+                project_provider_resource_id=request.project_provider_resource_id,
             ):
                 raise ProviderConnectionNotFoundError
         message_type = {

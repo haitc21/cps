@@ -11,6 +11,7 @@ from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from cps.contracts.messages.types import VOLUME_SNAPSHOT_CREATE
 from cps.domain.operations.errors import ConcurrentUpdateError, OperationPersistenceError
 from cps.domain.operations.event_details import (
     SafeEventDetails,
@@ -61,6 +62,38 @@ class OperationRepository:
             )
         )
         return result.scalar_one_or_none()
+
+    async def cps_created_volume_snapshot_exists(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        provider_resource_id: str,
+        project_provider_resource_id: str | None = None,
+    ) -> bool:
+        """Return true when a succeeded CPS snapshot create owns the provider ID."""
+        result = await self._session.execute(
+            select(Operation)
+            .where(
+                Operation.provider_connection_id == provider_connection_id,
+                Operation.operation_type == VOLUME_SNAPSHOT_CREATE,
+                Operation.state == OperationState.SUCCEEDED,
+                Operation.result_payload["provider_resource_id"].as_string()
+                == provider_resource_id,
+            )
+            .limit(1)
+        )
+        operation = result.scalar_one_or_none()
+        if operation is None:
+            return False
+        if project_provider_resource_id is None:
+            return True
+        parameters = operation.request_payload.get("parameters")
+        if not isinstance(parameters, dict):
+            return True
+        stored_project = parameters.get("project_provider_resource_id")
+        if stored_project is None:
+            return True
+        return str(stored_project) == project_provider_resource_id
 
     async def insert_operation(
         self,

@@ -409,6 +409,31 @@ class EventInboxConsumer:
                             ports=result.get("ports", []),
                             volumes=result.get("volumes", []),
                         )
+                    if (
+                        result.get("resource_type") == "snapshot"
+                        and result.get("operation") == "create"
+                    ):
+                        resource = result.get("resource")
+                        provider_resource_id = result.get("provider_resource_id")
+                        snapshot_payload: dict[str, Any] | None = None
+                        if isinstance(resource, dict):
+                            snapshot_payload = dict(resource)
+                        elif isinstance(provider_resource_id, str):
+                            snapshot_payload = {"provider_resource_id": provider_resource_id}
+                        if isinstance(snapshot_payload, dict) and isinstance(
+                            provider_resource_id, str
+                        ):
+                            snapshot_payload.setdefault(
+                                "provider_resource_id", provider_resource_id
+                            )
+                        if isinstance(snapshot_payload, dict) and isinstance(
+                            snapshot_payload.get("provider_resource_id"), str
+                        ):
+                            await uow.inventory.persist_snapshot_result(
+                                provider_connection_id=envelope.provider_connection_id,
+                                sync_id=None,
+                                snapshot=snapshot_payload,
+                            )
                     if result.get("resource_type") == "volume-attachment" and result.get(
                         "operation"
                     ) in {"attach", "detach"}:
