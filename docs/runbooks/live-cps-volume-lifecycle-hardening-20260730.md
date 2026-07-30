@@ -127,3 +127,42 @@ completed, but the Nova/Cinder attachment state remained inconsistent, leaving
 Cinder in `detaching` and rejecting the subsequent detach action. The current
 OPS error is a generic `PROVIDER_INTERNAL_ERROR`; the underlying provider
 status is HTTP 400 after the earlier HTTP 409 conflict.
+
+## VL-04 — detach convergence retry regression
+
+OPS now retries Nova `delete_volume_attachment` up to three times with a
+two-second interval for transient `ConflictException`. Non-conflict errors
+remain immediate failures; no direct Cinder attachment deletion or reset-state
+fallback was added.
+
+Automated verification in OPS: `439 passed, 24 skipped`, Ruff passed, mypy
+passed, and focused volume tests `8 passed`. The updated OPS image was rebuilt
+and restarted locally.
+
+A fresh disposable volume was exercised through CPS API only:
+
+- Create `a7cf181b-6047-5ea7-aadf-7180b29439a2`: `SUCCEEDED`; volume
+  `0a0e4962-47eb-4b83-a1f6-feac4006d163`.
+- Attach `a5aeb7bb-de5b-5c07-904b-ac62ec46264a`: `SUCCEEDED`, `/dev/vde`.
+- Detach `f308533f-4281-5a3d-ad38-d83dca157853`: `FAILED`.
+- CPS retry `b8ce24cc-c0e1-5ba5-97a7-6a3e397e8efe`: `FAILED`.
+
+Controller CLI read-back after both CPS requests showed the new volume still
+`detaching`, with attachment `2cbc69ad-317b-4fb8-a208-519317c60fca` present on
+`dev-cmp1`; the server remained `ACTIVE` and listed the volume. This reproduces
+the failure on a newly created volume, so the remaining issue is provider /
+backend convergence, not stale CPS inventory or the old volume. VL-04 is **not
+Done**; provider remediation is required before CPS-only detach/delete can be
+verified successfully.
+
+For the fresh volume, compute01 logged the same provider failure:
+
+- `08:07:20.635`: libvirt could not remove `/dev/vde` from the persistent
+  domain config.
+- `08:07:20.741`: libvirt reported successful removal from the live domain.
+- `08:07:21.220`: Nova/Cinder returned `ConflictNovaUsingAttachment` HTTP 409
+  for attachment `2cbc69ad-317b-4fb8-a208-519317c60fca`, request ID
+  `req-839e647e-7b76-4a55-beeb-7d187680593c`.
+
+This confirms the retry reaches the provider, but cannot repair the underlying
+persistent libvirt/Nova/Cinder state mismatch.
