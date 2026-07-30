@@ -103,7 +103,21 @@ def downgrade() -> None:
             nullable=False,
         ),
         sa.Column("version", sa.Integer(), server_default="1", nullable=False),
+        sa.CheckConstraint(
+            "octet_length(password_nonce) = 12",
+            name=op.f("ck_credentials_password_nonce_length"),
+        ),
+        sa.CheckConstraint(
+            "octet_length(username_nonce) = 12",
+            name=op.f("ck_credentials_username_nonce_length"),
+        ),
+        sa.CheckConstraint("version > 0", name=op.f("ck_credentials_version_positive")),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "encryption_key_version",
+            "password_nonce",
+            name="uq_credentials_encryption_key_version_password_nonce",
+        ),
     )
     op.add_column("provider_connections", sa.Column("credential_id", sa.Uuid(), nullable=True))
     op.create_foreign_key(

@@ -27,7 +27,6 @@ pytestmark = pytest.mark.integration
 CORE_TABLES = frozenset(
     {
         "providers",
-        "credentials",
         "provider_connections",
         "operations",
         "operation_events",
@@ -35,6 +34,7 @@ CORE_TABLES = frozenset(
         "inbox_messages",
         "regions",
         "identity_domains",
+        "identity_bindings",
         "projects",
         "flavors",
         "images",
@@ -48,8 +48,10 @@ CORE_TABLES = frozenset(
         "security_group_rules",
         "floating_ips",
         "volumes",
+        "volume_snapshots",
         "instance_ports",
         "instance_volumes",
+        "keypairs",
         "inventory_syncs",
         "inventory_batches",
         "role_assignments",
@@ -152,7 +154,7 @@ def fresh_migrated_database(integration_database_url: str) -> Iterator[str]:
             )
             if cursor.fetchone() is not None:
                 cursor.execute(
-                    "TRUNCATE TABLE providers, credentials, provider_connections, operations, "
+                    "TRUNCATE TABLE providers, provider_connections, operations, "
                     "operation_events, outbox_messages, inbox_messages RESTART IDENTITY CASCADE"
                 )
     run_alembic(integration_database_url, "base")
