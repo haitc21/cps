@@ -5,7 +5,7 @@ services:
     image: postgres:18-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cps}
+      POSTGRES_DB: ${POSTGRES_DB:-cmp_cps}
       POSTGRES_USER: ${POSTGRES_USER:-cps}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cps_dev_password}
     ports:
@@ -49,7 +49,7 @@ services:
     restart: unless-stopped
     environment:
       CPS_ENVIRONMENT: development
-      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
+      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cmp_cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
       CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "serve", "--host", "0.0.0.0", "--port", "8000"]
@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
     environment:
       CPS_ENVIRONMENT: development
-      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
+      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cmp_cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
       CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "serve", "--internal", "--host", "0.0.0.0", "--port", "8002"]
@@ -103,7 +103,7 @@ services:
     restart: unless-stopped
     environment:
       CPS_ENVIRONMENT: development
-      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cps}
+      CPS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-cps}:${POSTGRES_PASSWORD:-cps_dev_password}@postgres:5432/${POSTGRES_DB:-cmp_cps}
       CPS_RABBITMQ_URL: amqp://${RABBITMQ_USER:-cmp}:${RABBITMQ_PASSWORD:-cmp_dev_password}@rabbitmq:5672/${RABBITMQ_VHOST:-cmp}
       CPS_CREDENTIAL_KEY_RING: ${CPS_CREDENTIAL_KEY_RING:?CPS_CREDENTIAL_KEY_RING must be set; see .env.example}
     command: ["cps", "worker"]

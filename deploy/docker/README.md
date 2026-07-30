@@ -39,7 +39,7 @@ Run the commands from this directory. RabbitMQ Management is available at
 Default local connection values when no `.env` file is present:
 
 ```text
-PostgreSQL: postgresql://cps:cps_dev_password@127.0.0.1:5432/cps
+PostgreSQL: postgresql://cps:cps_dev_password@127.0.0.1:5432/cmp_cps
 RabbitMQ:   amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp
 ```
 
@@ -47,7 +47,7 @@ CPS runtime settings for the same stack:
 
 ```text
 CPS_ENVIRONMENT=development
-CPS_DATABASE_URL=postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cps
+CPS_DATABASE_URL=postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cmp_cps
 CPS_RABBITMQ_URL=amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp
 ```
 

@@ -42,14 +42,18 @@ class Settings(BaseSettings):
     def validate_required_urls(self) -> Settings:
         if self.environment == "development":
             if not self.database_url:
-                self.database_url = "postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cps"
+                self.database_url = (
+                    "postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cmp_cps"
+                )
             if not self.rabbitmq_url:
                 self.rabbitmq_url = "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"
             return self
 
         if self.environment == "test":
             if not self.database_url:
-                self.database_url = "postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cps"
+                self.database_url = (
+                    "postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cmp_cps"
+                )
             if not self.rabbitmq_url:
                 self.rabbitmq_url = "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"
             return self
