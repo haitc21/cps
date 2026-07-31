@@ -9,7 +9,7 @@
 Every new user-resource workflow has deterministic behavior under duplicate,
 restart, timeout, partial mutation, and direct provider drift.
 
-The Sprint 18 release matrix excludes the deferred console feature and covers
+The Sprint 18 release matrix excludes the superseded console feature and covers
 all currently delivered storage, identity, instance, catalog, and network
 flows.
 
@@ -27,5 +27,5 @@ flows.
 ## Done when
 
 Automated evidence covers volume, attachment, snapshot, keypair, resize,
-rebuild, console boundary, catalog policy, and network guardrails without
-unsafe inferred deletion.
+rebuild, catalog policy, and network guardrails without unsafe inferred
+deletion. The superseded console feature is explicitly outside this matrix.

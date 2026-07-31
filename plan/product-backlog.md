@@ -591,6 +591,9 @@ or import requires a separately approved security and data-plane design.
 ### CPS-1702 — Instance console and recovery actions
 
 - **Sprint/Priority/Points:** 17 / Should / 5
+- **Status:** Superseded; active backlog: no. The durable CPS↔OPS operation
+  boundary cannot carry a bearer console URL/token. Reconsider only through a
+  separately approved authenticated ephemeral-access architecture.
 - **Depends on:** CPS-403, CPS-1203
 - **Coordinates with:** OPS-1702
 - **Acceptance:** console access is short-lived, capability-gated, never stored
