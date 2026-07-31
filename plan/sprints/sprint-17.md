@@ -1,6 +1,6 @@
 # Sprint 17 — Advanced VM lifecycle and governed catalogs
 
-**Status:** In progress
+**Status:** Done — 1701/1703/1704 complete; 1702 superseded with Active backlog: no
 **Dates:** TBD at Sprint Planning
 **Capacity:** 34 CPS points
 **Sprint Goal:** CMP users can operate VMs beyond basic power actions while

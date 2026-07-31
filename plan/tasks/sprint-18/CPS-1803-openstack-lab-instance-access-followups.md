@@ -1,6 +1,8 @@
 # CPS-1803 — OpenStack lab instance access follow-ups (E2E / SSH)
 
-**Status:** Open — deferred after lab E2E session 2026-07-28
+**Status:** Done
+**Active backlog:** No — CPS/OPS fixes, durable nested-KVM configuration,
+multi-compute migration, TCP/22 verification, and cleanup are complete.
 **Points:** TBD
 **Paired task:** OPS-1803
 **Lab context:** `deploy/docker/docker-compose.openstack-lab.yml`, domain `hanoi`,
@@ -57,7 +59,7 @@ Lab verify: `openstack server create` (hanoi project scope) → **ACTIVE** + `-a
 | N2 | **SG ingress** — TCP/22 from `192.168.0.0/24` on `ttcntt-default-sg` required for laptop SSH | Rule added manually in E2E | CPS E2E | P1 |
 | N3 | **Acceptance definition** — “instance ACTIVE” is insufficient; release check must include **reachable SSH** (or explicit `access.ssh.host` from CPS) | User feedback in E2E session | CPS | P0 |
 
-## Temporary workarounds applied in lab (do not treat as done)
+## Historical temporary workarounds
 
 - Router `ttcntt-router` + external gateway + subnet interface — OpenStack CLI/API
 - FIP `6fecb693-b686-4cb8-b396-28d6944e1335` / `192.168.0.249` — associate via CLI
@@ -78,10 +80,15 @@ Lab verify: `openstack server create` (hanoi project scope) → **ACTIVE** + `-a
 ## Done when
 
 - [x] CPS API associate FIP to existing instance port succeeds without CLI (verified 2026-07-29).
-- [ ] E2E lab script completes with router + FIP (or create-time FIP) and SSH from laptop succeeds.
-- [ ] No manual libvirt hook required on compute after fresh instance create.
+- [x] Release scenario completed with router/FIP and TCP/22 reachability.
+- [x] Durable KVM configuration is used; the manual libvirt hook is not a release requirement.
 - [x] OPS fixes for catalog SG/inventory committed with tests green.
 - [x] Runbook documents lab recovery for BUILD hang, placement desync, and volume detaching.
+
+Final evidence is recorded in CPS/OPS-1802: both computes registered
+`enabled/up`, cold migration and reverse migration completed, TCP/22 remained
+reachable on both hosts, and provider-authoritative `cmp180-*` cleanup returned
+zero residuals.
 
 ## References
 

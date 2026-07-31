@@ -1,6 +1,8 @@
 # CPS-1202 — Canonical project ownership for tenant resources
 
-**Status:** Ready  
+**Status:** Done
+**Active backlog:** No — canonical project ownership and tenant-resource
+projection evidence are complete.
 **Points:** 13  
 **Depends on:** CPS-1201, CPS-704  
 **Paired task:** OPS-1201  

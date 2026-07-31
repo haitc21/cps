@@ -22,7 +22,7 @@ authorization, migration, restart, redelivery, provider drift, and cleanup.
 |---|---|---|---|
 | [CPS-1801](../tasks/sprint-18/CPS-1801-convergence-recovery.md) | Failure matrix and cross-resource reconciliation | CPS-E15..E17 | Done |
 | [CPS-1802](../tasks/sprint-18/CPS-1802-release-acceptance.md) | Migration, operations, compatibility, E2E, cleanup | CPS-1801 | Done |
-| [CPS-1803](../tasks/sprint-18/CPS-1803-openstack-lab-instance-access-followups.md) | Lab E2E SSH: FIP associate, router+FIP script, hypervisor desync | CPS-1801, OPS-1803 | Done (FIP + hypervisor root cause; SSH gate blocked by libvirt paused-at-spawn after manual recovery) |
+| [CPS-1803](../tasks/sprint-18/CPS-1803-openstack-lab-instance-access-followups.md) | Lab E2E SSH: FIP associate, router+FIP script, hypervisor desync | CPS-1801, OPS-1803 | Done — Active backlog: no; compute01/compute02 migration + TCP/22 verified |
 
 ## Review evidence
 

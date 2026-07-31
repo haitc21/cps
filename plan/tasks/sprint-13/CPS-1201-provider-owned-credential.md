@@ -1,6 +1,8 @@
 # CPS-1201 — Provider-owned encrypted credential
 
-**Status:** Ready  
+**Status:** Done
+**Active backlog:** No — provider-owned credential migration, contracts, and
+full PostgreSQL lifecycle evidence are complete.
 **Points:** 13  
 **Depends on:** none  
 **Paired task:** OPS-1201  

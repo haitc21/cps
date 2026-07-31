@@ -1,5 +1,9 @@
 # CPS-1204 — Provider creator role convergence
 
+**Status:** Done
+**Active backlog:** No — live domain/project role-assignment convergence and
+idempotent replay were verified.
+
 ## Goal
 
 Ensure the OpenStack credential user that creates a domain or project receives

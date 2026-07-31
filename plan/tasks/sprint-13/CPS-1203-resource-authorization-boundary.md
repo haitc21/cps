@@ -1,6 +1,7 @@
 # CPS-1203 — Fail-closed resource authorization boundary
 
-**Status:** Ready with external dependency  
+**Status:** Deferred — excluded TMS-dependent authorization scope  
+**Active backlog:** No — TMS work is explicitly excluded from the current scope  
 **Points:** 13  
 **Depends on:** CPS-1202  
 **Paired task:** OPS-1202  
