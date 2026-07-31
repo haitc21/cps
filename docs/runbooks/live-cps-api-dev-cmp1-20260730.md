@@ -211,6 +211,38 @@ worker flow:
 
 Changes remain unstaged/uncommitted as required by the working agreement.
 
+## Fresh rerun after OpenStack 2025.2 upgrade (2026-07-30)
+
+The requested identity flow was rerun from the current CPS database and
+current OpenStack controller, using CPS API mutations only:
+
+- Domain `hanoi`: CPS operation `019fb27e-d5a4-7246-826b-c24247d9532e`,
+  `SUCCEEDED`; provider ID `f482e589f70e40ddbc094e05638689ce`.
+- Project `ttcntt` under `hanoi`: CPS operation
+  `019fb27f-03b9-7cc9-b79b-427f1aed0066`, `SUCCEEDED`; provider ID
+  `bf4fac71208a4ca7a1f941a1cc7f2bd7`.
+- Admin role assignment to the new project was requested through CPS. The
+  CPS operation reported a provider error, but read-only controller CLI
+  verification shows the `admin` user has the `admin` role on the new project.
+- Project connection for `ttcntt` was created through CPS:
+  `019fb27f-b6e0-7c98-8c96-2de5c5c8d28c`.
+- Project connection validation:
+  `019fb27f-d1dc-7c90-96e5-97a4bb4c9c2d`, `SUCCEEDED`.
+- Inventory sync for `flavor`, `image`, and `network`:
+  `019fb280-0109-7760-bdbd-d73f25cf8e29`, `SUCCEEDED`.
+
+The current upgraded OpenStack inventory was then checked read-only. It has
+only flavor `m1.test` and image `cirros`; the requested flavor `m1.medium`
+and image `ubuntu-24.04` are absent. CPS has no flavor/image-create endpoint
+that can seed those prerequisites. Therefore the `dev-cmp1` create request
+was intentionally not sent and no substitute flavor/image was used.
+
+This fresh run is **BLOCKED on missing OpenStack prerequisites**, not on CPS
+domain/project creation. To continue the exact runbook, make `m1.medium` and
+`ubuntu-24.04` available through an approved provisioning path, then rerun
+the CPS-only instance create request. OpenStack CLI was used only for
+read-only verification in this rerun.
+
 ## Final state
 
 Successful:

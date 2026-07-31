@@ -166,3 +166,156 @@ For the fresh volume, compute01 logged the same provider failure:
 
 This confirms the retry reaches the provider, but cannot repair the underlying
 persistent libvirt/Nova/Cinder state mismatch.
+
+## VL-05 — OpenStack 2025.2 post-upgrade acceptance (2026-07-30)
+
+### Controller CLI pre-check (read-only)
+
+The pre-check was run on controller `192.168.122.253` with OpenStack CLI.
+No OpenStack CLI mutation was performed.
+
+- `openstack --version`: `openstack 8.2.0`
+- Keystone, Nova, Neutron, Glance, Placement, and Cinder services were
+  present in `openstack service list`.
+- Nova scheduler/conductor and compute service were `enabled/up`.
+- Cinder scheduler and `compute01@lvm` volume service were `enabled/up`.
+- All Neutron agents were `Alive: :-)`.
+- Existing server read-back: `test-instance`, UUID
+  `dbb63eb7-72c4-426a-aaa3-6b116a4ae936`, state `ACTIVE`.
+- `openstack volume list --all-projects`: empty.
+
+### CPS API validation
+
+A provider and system-scoped provider connection were created through CPS API:
+
+- Provider: `019fb259-cc0a-7db1-bd92-155662c67b8d`
+- Connection: `019fb259-cc0b-726a-b98a-22dcc24734b7`
+
+The first validation used `http://controller:5000/v3` and failed:
+
+- Operation `019fb25a-eb68-7433-b833-25e7c875bdbe`: `FAILED`,
+  `PROVIDER_INTERNAL_ERROR`.
+- OPS log showed `keystoneauth` could not discover identity versions from
+  `http://controller:5000/v3`.
+
+The provider endpoint was then corrected through CPS `PATCH /api/v1/providers`
+to the controller address and validation was retried:
+
+- `019fb25b-a492-7cbb-863f-13814e997953`: `FAILED`,
+  `PROVIDER_INTERNAL_ERROR` for `192.168.122.253:5000`.
+- `019fb25d-70a2-797f-9432-22ea2a43b61c`: `QUEUED` at the time of the
+  network workaround attempt; no resource mutation was started.
+- The endpoint was restored through CPS API to `http://controller:5000/v3`.
+
+Read-only connectivity evidence explains the failure: host curl to
+`http://controller:5000/v3` returned Keystone `v3.14`, while a socket test
+from `cmp-ops-worker-1` to both `controller:5000` and
+`192.168.122.253:5000` returned `ConnectionRefusedError(111)`. The Docker
+Compose network cannot reach the libvirt controller network, and its current
+`controller:host-gateway` mapping points at an unusable Docker bridge address.
+
+Therefore the 2025.2 CPS API runbook is **BLOCKED before provider validation**.
+No volume was created, attached, detached, resized, or deleted in this run;
+there is no CPS evidence to claim volume lifecycle compatibility after the
+upgrade. This is a local Docker-to-controller network/configuration blocker,
+not evidence of an OpenStack 2025.2 API regression and not a CPS timeout.
+
+### Required unblock
+
+Make the controller endpoint reachable from the OPS worker network (for
+example, correct the Compose `extra_hosts`/routing or place the worker on a
+network with access to `192.168.122.0/24`), then rerun this section. Only after
+`connection.validate` succeeds may the CPS-only volume create/attach/detach/
+delete lifecycle be marked passed.
+
+## VL-06 — Network fixed; Cinder catalog compatibility remains blocked
+
+The Docker-to-controller routing blocker from VL-05 was resolved externally:
+
+- `cmp-ops-worker-1` reached `http://192.168.122.253:5000/v3` with HTTP 200.
+- `cmp-ops-worker-1` reached `http://controller:5000/v3` with HTTP 200.
+- The `controller` host mapping now resolves to `192.168.122.253`.
+- Forwarding through `virbr0` was allowed on the Docker host.
+
+CPS validation was rerun successfully:
+
+- Operation `019fb26c-aea2-73ba-b2a3-e88e9f116a4b`: `SUCCEEDED`.
+- CPS reported Keystone `v3.14`, Nova microversion `2.100`, Glance `2.17`,
+  and Neutron as available.
+
+CPS inventory sync also succeeded:
+
+- Operation `019fb26c-e42d-7390-9d11-8840706b3487`: `SUCCEEDED`.
+- Collections: `flavor`, `image`, `network`, `volume`, `instance`.
+
+A project-scoped CPS connection was created and validated for the existing
+OpenStack project `myproject` (`b362943314264bccbe617ce386b7ae61`):
+
+- Connection: `019fb26d-6faa-7a0f-a80d-a782f651ec8a`.
+- Validation operation: `019fb26d-7f0e-76c6-8d8d-9e58fe14af7f`, `SUCCEEDED`.
+
+Both CPS-only volume-create attempts failed before a Cinder request was
+recorded:
+
+- `61499df8-48d7-50cf-85a8-9d5a254085a5`: `FAILED`, with explicit
+  `project_provider_resource_id`.
+- `e84c21fc-3892-5768-828b-ff2441fba1cb`: `FAILED`, using the project-scoped
+  connection without an explicit project ID.
+
+The CPS validation capability document marked `block_storage.available=true`
+but returned no block-storage endpoint or version. Controller CLI read-only
+inspection shows the Cinder service registered only as type `volumev3`, while
+the OPS OpenStackSDK block-storage service resolves the standard type
+`block-storage`. Cinder access logs contain no corresponding create request,
+confirming this is endpoint resolution before the provider HTTP call, not a
+Cinder backend timeout.
+
+VL-06 is therefore **BLOCKED on the OpenStack Keystone catalog**. Add a
+`block-storage` service type with public/internal/admin endpoints pointing to
+the existing Cinder v3 URL, or update the existing Cinder service type after
+checking client compatibility. Do not remove the existing `volumev3` service
+until CPS volume operations pass. After the catalog is corrected, rerun the
+CPS-only create/attach/detach/delete lifecycle; no OpenStack CLI mutation was
+performed by this run.
+
+## VL-07 — Cinder create payload and project ownership (2026-07-30)
+
+After the Docker route and Keystone `block-storage` service type were fixed,
+the CPS provider reached Cinder successfully.
+
+The project-scoped connection for `myproject` authenticated with
+`project_name=myproject` but was rejected by Keystone as `Unauthorized`,
+because the configured `admin` user is not authorized in that project. A
+separate CPS provider/connection was created with an `admin` project token:
+
+- Provider: `019fb277-4fd2-78fd-abe6-f9868564aac1`
+- Connection: `019fb277-630a-72cb-ade9-37207fe94e9e`
+- Validation operation: `019fb277-72ec-7dc2-aa02-106520a70f10`, `SUCCEEDED`.
+
+The following CPS-only create attempt included the target project ID and
+reached Cinder, but Cinder returned HTTP 400:
+
+- Operation: `cc40dd67-448e-56df-b188-04e05d46c069`
+- Provider request ID: `req-1ba11588-833a-4a8c-8c14-064322280fcc`
+- Cinder log: `POST /v3/7a6434d271c9464091d86d82c377de78/volumes` → HTTP 400.
+
+The same CPS API create operation without `project_provider_resource_id`
+succeeded:
+
+- Operation: `95256401-773f-541f-892b-d70b7d7cb23f`, `SUCCEEDED`.
+- Temporary volume: `52b7042b-38f0-407c-852f-a6ecbed2dc9b`.
+- Cinder reported the volume project as `admin` (`7a6434d271c9464091d86d82c377de78`).
+
+The temporary volume was deleted through CPS API:
+
+- Operation: `a8799dd2-eb5c-5ccd-91c5-9af40e6581e0`, `SUCCEEDED`.
+- Controller CLI read-back found no remaining volume with that ID.
+
+This proves the OpenStack 2025.2 Cinder endpoint and basic CPS volume create
+path work. The remaining blocker is project ownership: OPS currently sends
+`project_id` to Cinder when the token is scoped to `admin`, and Cinder rejects
+that cross-project create with HTTP 400. The test instance belongs to
+`myproject`, so the admin-owned temporary volume could not be attached to it.
+VL-07 is **BLOCKED** until either a credential with a role in `myproject` is
+provided to CPS, or OPS/CPS implements a supported project-scoped ownership
+flow. No volume remains from this test.
