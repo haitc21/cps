@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import uuid
 from datetime import UTC, datetime
 
@@ -17,6 +18,8 @@ from cps.contracts.errors import (
     CatalogPolicyViolationError,
     IdempotencyKeyReusedError,
     InstanceStateConflictError,
+    NetworkPolicyViolationError,
+    NetworkQuotaExceededError,
     OperationNotFoundPublicError,
     ProviderConnectionNotFoundError,
 )
@@ -801,6 +804,7 @@ class OperationApplicationService:
         connection = await self._repository.get_provider_connection(connection_id)
         if connection is None or request.provider_connection_id != connection.id:
             raise ProviderConnectionNotFoundError
+        await self._validate_network_operation_policy(connection.id, request)
         table = {
             ("network", "create"): NETWORK_CREATE,
             ("network", "update"): NETWORK_UPDATE,
@@ -896,6 +900,116 @@ class OperationApplicationService:
                 message_id=message_id,
             )
         return to_view(operation)
+
+    async def _validate_network_operation_policy(
+        self,
+        connection_id: uuid.UUID,
+        request: NetworkOperationRequest,
+    ) -> None:
+        if self._inventory is None:
+            raise NetworkPolicyViolationError
+        resource_type = request.resource_type.value
+        inventory_type = resource_type.replace("router-interface", "router")
+        if (
+            request.operation.value in {"create", "allocate"}
+            and not request.project_provider_resource_id
+        ):
+            raise NetworkPolicyViolationError
+        if request.provider_resource_id and resource_type != "router-interface":
+            if not await self._inventory.resource_belongs_to_connection(
+                inventory_type, connection_id, request.provider_resource_id
+            ):
+                raise ProviderConnectionNotFoundError
+        if (
+            request.provider_resource_id
+            and resource_type == "router-interface"
+            and not await self._inventory.resource_belongs_to_connection(
+                "router", connection_id, request.provider_resource_id
+            )
+        ):
+            raise ProviderConnectionNotFoundError
+        references = (
+            ("network", request.network_provider_resource_id),
+            ("subnet", request.subnet_provider_resource_id),
+            ("port", request.port_provider_resource_id),
+        )
+        for reference_type, provider_resource_id in references:
+            if provider_resource_id and not await self._inventory.resource_belongs_to_connection(
+                reference_type, connection_id, provider_resource_id
+            ):
+                raise ProviderConnectionNotFoundError
+            if (
+                provider_resource_id
+                and request.project_provider_resource_id
+                and not (
+                    resource_type == "floating-ip"
+                    and request.operation.value == "allocate"
+                    and reference_type == "network"
+                )
+            ):
+                rows, _ = await self._inventory.list_resources(
+                    reference_type,
+                    provider_connection_id=connection_id,
+                    provider_resource_id=provider_resource_id,
+                    offset=0,
+                    limit=1,
+                )
+                owner = getattr(rows[0], "project_provider_resource_id", None) if rows else None
+                if owner and owner != request.project_provider_resource_id:
+                    raise ProviderConnectionNotFoundError
+        if (
+            resource_type == "floating-ip"
+            and request.operation.value == "allocate"
+            and request.network_provider_resource_id
+            and not await self._inventory.catalog_resource_is_approved(
+                "network", connection_id, request.network_provider_resource_id
+            )
+        ):
+            raise CatalogPolicyViolationError
+        if resource_type == "subnet" and request.operation.value == "create":
+            requested = ipaddress.ip_network(str(request.parameters["cidr"]), strict=True)
+            rows, _ = await self._inventory.list_resources(
+                "subnet",
+                provider_connection_id=connection_id,
+                project_provider_resource_id=request.project_provider_resource_id,
+                offset=0,
+                limit=1000,
+            )
+            for row in rows:
+                existing_cidr = (row.provider_attributes or {}).get("cidr")
+                if isinstance(existing_cidr, str):
+                    try:
+                        existing = ipaddress.ip_network(existing_cidr, strict=False)
+                    except ValueError:
+                        continue
+                    if requested.version == existing.version and requested.overlaps(existing):
+                        raise NetworkPolicyViolationError
+        quota_resource = {
+            "network": "networks",
+            "subnet": "subnets",
+            "router": "routers",
+            "port": "ports",
+            "security-group": "security_groups",
+            "security-group-rule": "security_group_rules",
+            "floating-ip": "floating_ips",
+        }.get(resource_type)
+        if request.operation.value in {"create", "allocate"} and quota_resource:
+            rows, _ = await self._inventory.list_resources(
+                "quota",
+                provider_connection_id=connection_id,
+                project_provider_resource_id=request.project_provider_resource_id,
+                offset=0,
+                limit=1000,
+            )
+            for row in rows:
+                if (
+                    row.service == "network"
+                    and row.resource_name.replace("-", "_") == quota_resource
+                    and not row.unlimited
+                    and row.limit_value is not None
+                    and (row.in_use or 0) >= row.limit_value
+                ):
+                    raise NetworkQuotaExceededError
 
     async def create_volume_operation(
         self,

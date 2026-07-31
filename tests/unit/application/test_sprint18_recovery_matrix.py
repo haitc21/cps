@@ -62,6 +62,14 @@ class _Outbox:
         self.drafts.append(draft)
 
 
+class _Inventory:
+    async def resource_belongs_to_connection(self, *_args) -> bool:
+        return True
+
+    async def list_resources(self, *_args, **_kwargs):
+        return [], 0
+
+
 async def _queue_operation(repository: _Repository, operation_id: uuid.UUID):
     operation = next(item for item in repository.operations.values() if item.id == operation_id)
     operation.state = OperationState.QUEUED
@@ -77,7 +85,7 @@ async def test_network_floating_ip_associate_idempotency_is_deterministic(
     connection = SimpleNamespace(id=connection_id, provider_id=uuid.uuid4())
     repository = _Repository(connection)
     outbox = _Outbox()
-    service = OperationApplicationService(repository, outbox)
+    service = OperationApplicationService(repository, outbox, _Inventory())
 
     async def transition(_service, **kwargs):
         return await _queue_operation(repository, kwargs["operation_id"])
@@ -133,7 +141,7 @@ async def test_volume_and_network_idempotency_use_distinct_operation_types(
     connection = SimpleNamespace(id=connection_id, provider_id=uuid.uuid4())
     repository = _Repository(connection)
     outbox = _Outbox()
-    service = OperationApplicationService(repository, outbox)
+    service = OperationApplicationService(repository, outbox, _Inventory())
 
     async def transition(_service, **kwargs):
         return await _queue_operation(repository, kwargs["operation_id"])

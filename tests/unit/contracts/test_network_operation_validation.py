@@ -49,3 +49,84 @@ def test_floating_ip_allocate_requires_external_network() -> None:
                 "provider_connection_id": uuid4(),
             }
         )
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"cidr": "10.0.0.0/24", "gateway_ip": "10.0.1.1"},
+        {
+            "cidr": "10.0.0.0/24",
+            "allocation_pools": [{"start": "10.0.1.10", "end": "10.0.1.20"}],
+        },
+    ],
+)
+def test_subnet_rejects_gateway_or_pool_outside_cidr(parameters: dict[str, object]) -> None:
+    with pytest.raises(ValueError, match="inside subnet cidr"):
+        _request(
+            resource_type=NetworkResourceType.SUBNET,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            network_provider_resource_id="network-1",
+            port_provider_resource_id=None,
+            parameters=parameters,
+        )
+
+
+def test_external_network_mutation_is_admin_only() -> None:
+    with pytest.raises(ValueError, match="administrator-only"):
+        _request(
+            resource_type=NetworkResourceType.NETWORK,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            port_provider_resource_id=None,
+            parameters={"name": "provider", "router:external": True},
+        )
+
+
+def test_public_ingress_and_invalid_port_range_are_rejected() -> None:
+    base = {
+        "security_group_id": "sg-1",
+        "direction": "ingress",
+        "remote_ip_prefix": "0.0.0.0/0",
+    }
+    with pytest.raises(ValueError, match="public ingress"):
+        _request(
+            resource_type=NetworkResourceType.SECURITY_GROUP_RULE,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            port_provider_resource_id=None,
+            parameters=base,
+        )
+
+
+def test_noncanonical_public_ingress_and_invalid_remote_prefix_are_rejected() -> None:
+    base = {
+        "security_group_id": "sg-1",
+        "direction": "ingress",
+    }
+    with pytest.raises(ValueError, match="public ingress"):
+        _request(
+            resource_type=NetworkResourceType.SECURITY_GROUP_RULE,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            port_provider_resource_id=None,
+            parameters=base | {"remote_ip_prefix": "0.0.0.1/0"},
+        )
+    with pytest.raises(ValueError, match="valid network"):
+        _request(
+            resource_type=NetworkResourceType.SECURITY_GROUP_RULE,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            port_provider_resource_id=None,
+            parameters=base | {"remote_ip_prefix": "not-a-cidr"},
+        )
+    with pytest.raises(ValueError, match="invalid port range"):
+        _request(
+            resource_type=NetworkResourceType.SECURITY_GROUP_RULE,
+            operation=NetworkOperation.CREATE,
+            provider_resource_id=None,
+            port_provider_resource_id=None,
+            parameters=base
+            | {"remote_ip_prefix": "10.0.0.0/8", "port_range_min": 443, "port_range_max": 22},
+        )

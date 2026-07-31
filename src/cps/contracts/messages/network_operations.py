@@ -73,9 +73,60 @@ class NetworkOperationRequest(BaseModel):
             if not isinstance(cidr, str):
                 raise ValueError("subnet create requires cidr")
             try:
-                ipaddress.ip_network(cidr, strict=True)
+                network = ipaddress.ip_network(cidr, strict=True)
             except ValueError as exc:
                 raise ValueError("cidr must be a valid network") from exc
+            gateway = self.parameters.get("gateway_ip")
+            if gateway is not None and ipaddress.ip_address(str(gateway)) not in network:
+                raise ValueError("gateway_ip must be inside subnet cidr")
+            for pool in self.parameters.get("allocation_pools", []) or []:
+                if not isinstance(pool, dict) or not pool.get("start") or not pool.get("end"):
+                    raise ValueError("invalid allocation pool")
+                start = ipaddress.ip_address(str(pool["start"]))
+                end = ipaddress.ip_address(str(pool["end"]))
+                if (
+                    start.version != end.version
+                    or start not in network
+                    or end not in network
+                    or int(start) > int(end)
+                ):
+                    raise ValueError("allocation pool must be inside subnet cidr")
+        if (
+            self.resource_type is NetworkResourceType.NETWORK
+            and self.operation in {NetworkOperation.CREATE, NetworkOperation.UPDATE}
+            and any(
+                self.parameters.get(key) is True
+                for key in ("external", "is_router_external", "router:external")
+            )
+        ):
+            raise ValueError("external network mutation is administrator-only")
+        if (
+            self.resource_type is NetworkResourceType.SECURITY_GROUP_RULE
+            and self.operation is NetworkOperation.CREATE
+        ):
+            direction = self.parameters.get("direction")
+            if direction not in {"ingress", "egress"}:
+                raise ValueError("direction must be ingress or egress")
+            minimum = self.parameters.get("port_range_min")
+            maximum = self.parameters.get("port_range_max")
+            if (minimum is None) != (maximum is None):
+                raise ValueError("port range requires both minimum and maximum")
+            if minimum is not None and (
+                not isinstance(minimum, int)
+                or not isinstance(maximum, int)
+                or minimum < 1
+                or maximum > 65535
+                or minimum > maximum
+            ):
+                raise ValueError("invalid port range")
+            remote_prefix = self.parameters.get("remote_ip_prefix")
+            if remote_prefix is not None:
+                try:
+                    remote_network = ipaddress.ip_network(str(remote_prefix), strict=False)
+                except ValueError as exc:
+                    raise ValueError("remote_ip_prefix must be a valid network") from exc
+                if direction == "ingress" and remote_network.prefixlen == 0:
+                    raise ValueError("public ingress rules require administrator policy")
         if self.resource_type is NetworkResourceType.ROUTER_INTERFACE and self.operation in {
             NetworkOperation.ENSURE,
             NetworkOperation.REMOVE,

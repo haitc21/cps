@@ -89,6 +89,17 @@ class InstanceStateConflictError(DomainConflictError):
     default_public_message = "Instance state does not allow this action"
 
 
+class NetworkPolicyViolationError(DomainConflictError):
+    code = "NETWORK_POLICY_VIOLATION"
+    default_public_message = "Network policy rejected this request"
+
+
+class NetworkQuotaExceededError(DomainConflictError):
+    code = "NETWORK_QUOTA_EXCEEDED"
+    category = ErrorCategory.QUOTA
+    default_public_message = "Network quota is exhausted"
+
+
 class ProviderNotFoundError(ResourceNotFoundError):
     code = "PROVIDER_NOT_FOUND"
     default_public_message = "Provider not found"
