@@ -300,7 +300,10 @@ async def test_live_publish_confirm_finalizes_and_preserves_message_id(
             "cmp.cloud.command.v1", aio_pika.ExchangeType.TOPIC, durable=True
         )
         queue = await channel.declare_queue(
-            f"cps.test.outbox.{new_uuid7().hex}", durable=False, auto_delete=True
+            f"cps.test.outbox.{new_uuid7().hex}",
+            durable=False,
+            auto_delete=True,
+            exclusive=True,
         )
         await queue.bind(exchange, "openstack.connection.validate")
         publisher = OutboxPublisher(

@@ -27,6 +27,8 @@ def insert_provider(
     version: int = 1,
 ) -> uuid.UUID:
     provider_id = provider_id or uuid.uuid4()
+    username_nonce = provider_id.bytes[:12]
+    password_nonce = provider_id.bytes[-12:]
     with conn.cursor() as cursor:
         cursor.execute(
             """
@@ -42,9 +44,9 @@ def insert_provider(
                 f"provider-{provider_id.hex[:8]}",
                 version,
                 b"user-cipher",
-                VALID_NONCE,
+                username_nonce,
                 b"password-cipher",
-                VALID_NONCE,
+                password_nonce,
                 "v1",
             ),
         )

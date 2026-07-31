@@ -26,6 +26,11 @@ async def test_unit_of_work_rollback_discards_provider_insert(db_session_factory
                     id=provider_id,
                     name="rollback-proof",
                     provider_type="OPENSTACK",
+                    username_ciphertext=b"user",
+                    username_nonce=provider_id.bytes[:12],
+                    password_ciphertext=b"password",
+                    password_nonce=provider_id.bytes[-12:],
+                    encryption_key_version="test",
                     status=ProviderStatus.ACTIVE,
                     version=1,
                 )

@@ -61,7 +61,6 @@ def _volume_payload(sync_id: uuid.UUID) -> InventoryBatchPayload:
             "metadata": {"tier": "gold"},
             "availability_zone": "nova",
             "attachments": [{"server_id": "server-1", "device": "/dev/vdb"}],
-            "attributes": {},
         }
     ]
     return InventoryBatchPayload.model_validate(

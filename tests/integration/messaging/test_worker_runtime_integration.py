@@ -11,6 +11,7 @@ import pytest
 
 from cps.config import Settings
 from cps.infrastructure.db.models.operations import Operation
+from cps.infrastructure.messaging.inbox_consumer import EventInboxConsumer
 from cps.messaging.runtime import run_worker
 from tests.integration.db.seed_helpers import seed_operation_graph
 from tests.integration.messaging.conftest import INTEGRATION_RETRY_TTLS_MS
@@ -155,6 +156,7 @@ async def test_runtime_consumes_live_event_and_updates_database(
 
 @pytest.mark.asyncio
 async def test_runtime_reconnects_after_forced_disconnect_and_consumes_again(
+    monkeypatch,
     db_tx,
     db_session_factory,
     integration_database_url,
@@ -179,7 +181,11 @@ async def test_runtime_reconnects_after_forced_disconnect_and_consumes_again(
         provider_connection_id=graph["connection_id"],
         message_id=uuid.uuid4(),
     )
-    fixture_b["payload"] = {"progress": 50, "message": "halfway complete"}
+    fixture_b["payload"] = {
+        "progress": 50,
+        "state": "WAITING_PROVIDER",
+        "message": "halfway complete",
+    }
 
     settings = Settings(
         environment="test",
@@ -189,6 +195,19 @@ async def test_runtime_reconnects_after_forced_disconnect_and_consumes_again(
     )
     stop_event = asyncio.Event()
     connect_calls = 0
+    consumer_starts = 0
+    reconnected_consumer = asyncio.Event()
+    original_start = EventInboxConsumer.start
+
+    async def tracked_start(self, channel, queue):
+        nonlocal consumer_starts
+        consumer_tag = await original_start(self, channel, queue)
+        consumer_starts += 1
+        if consumer_starts >= 2:
+            reconnected_consumer.set()
+        return consumer_tag
+
+    monkeypatch.setattr(EventInboxConsumer, "start", tracked_start)
     worker_connection = await aio_pika.connect_robust(
         disposable_vhost_manager.integration_url,
         timeout=5,
@@ -267,7 +286,11 @@ async def test_runtime_reconnects_after_forced_disconnect_and_consumes_again(
     else:
         pytest.fail("worker did not reconnect after connection loss")
 
-    await asyncio.sleep(1.0)
+    try:
+        await asyncio.wait_for(reconnected_consumer.wait(), timeout=15)
+    except TimeoutError:
+        pytest.fail("worker reconnected but did not restore its consumer")
+
     await publish_fixture(fixture_b)
     second_deadline = asyncio.get_event_loop().time() + 15
     while asyncio.get_event_loop().time() < second_deadline:

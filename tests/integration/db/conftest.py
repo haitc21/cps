@@ -38,6 +38,8 @@ CORE_TABLES = frozenset(
         "projects",
         "flavors",
         "images",
+        "availability_zones",
+        "volume_types",
         "instances",
         "networks",
         "subnets",

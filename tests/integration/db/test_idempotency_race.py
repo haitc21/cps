@@ -58,6 +58,7 @@ async def _seed_connection(
                 provider_id=provider_id,
                 connection_id=connection_id,
                 name="provider-idempotency",
+                description="integration idempotency race provider",
                 encrypted_username=cipher.encrypt_secret(
                     credential_id=provider_id,
                     field_label="username",

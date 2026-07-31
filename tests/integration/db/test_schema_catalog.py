@@ -20,7 +20,6 @@ from tests.integration.db.conftest import (
 pytestmark = pytest.mark.integration
 
 PRIMARY_KEYS = {
-    "credentials": "pk_credentials",
     "inbox_messages": "pk_inbox_messages",
     "outbox_messages": "pk_outbox_messages",
     "providers": "pk_providers",
@@ -31,9 +30,6 @@ PRIMARY_KEYS = {
 
 FOREIGN_KEYS = {
     "provider_connections": {
-        "fk_provider_connections_credential_id_credentials": (
-            "FOREIGN KEY (credential_id) REFERENCES credentials(id) ON DELETE RESTRICT"
-        ),
         "fk_provider_connections_provider_id_providers": (
             "FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE RESTRICT"
         ),
@@ -52,7 +48,7 @@ FOREIGN_KEYS = {
 }
 
 UNIQUE_CONSTRAINTS = {
-    "credentials": {"uq_credentials_encryption_key_version_password_nonce"},
+    "providers": {"uq_providers_encryption_key_version_password_nonce"},
     "inbox_messages": {"uq_inbox_messages_consumer_message"},
     "outbox_messages": {"uq_outbox_messages_message_id"},
     "provider_connections": {"uq_provider_connections_provider_domain_project_region"},
@@ -78,13 +74,10 @@ NORMAL_INDEXES = {
 
 CHECKS = {
     "providers": {
+        "ck_providers_ck_providers_password_nonce_length",
+        "ck_providers_ck_providers_username_nonce_length",
         "ck_providers_provider_type_openstack",
         "ck_providers_version_positive",
-    },
-    "credentials": {
-        "ck_credentials_password_nonce_length",
-        "ck_credentials_username_nonce_length",
-        "ck_credentials_version_positive",
     },
     "provider_connections": {
         "ck_provider_connections_interface_allowed",
@@ -249,7 +242,6 @@ def test_enum_names_and_values(
     "table",
     [
         "providers",
-        "credentials",
         "provider_connections",
         "operations",
         "operation_events",
@@ -265,20 +257,20 @@ def test_uuid_primary_keys_have_no_db_default(
     assert uuid_pk_has_default(db_admin_conn, table) is False
 
 
-def test_credentials_has_no_plaintext_password_column(
+def test_provider_owns_encrypted_password_without_plaintext_column(
     migrated_database: str,
     db_admin_conn: psycopg.Connection,
 ) -> None:
-    columns = table_columns(db_admin_conn, "credentials")
+    columns = table_columns(db_admin_conn, "providers")
     assert "password" not in columns
     assert "password_ciphertext" in columns
 
 
-def test_credentials_has_no_plaintext_username_column(
+def test_provider_owns_encrypted_username_without_plaintext_column(
     migrated_database: str,
     db_admin_conn: psycopg.Connection,
 ) -> None:
-    columns = table_columns(db_admin_conn, "credentials")
+    columns = table_columns(db_admin_conn, "providers")
     assert "username" not in columns
     assert {"username_ciphertext", "username_nonce"}.issubset(columns)
 

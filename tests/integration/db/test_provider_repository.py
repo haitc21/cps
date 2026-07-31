@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import select
 
@@ -47,6 +49,7 @@ async def _commit_provider_aggregate(db_session_factory, cipher):
                 provider_id=provider_id,
                 connection_id=connection_id,
                 name="provider-one",
+                description="integration provider repository fixture",
                 encrypted_username=username,
                 encrypted_password=password,
                 user_domain_name="Default",
@@ -89,11 +92,10 @@ async def test_provider_update_rotates_owned_credential(db_session_factory, ciph
         await uow.providers.update_provider_credential(
             provider_id,
             expected_version=provider.version,
-            username_ciphertext=username.ciphertext,
-            username_nonce=username.nonce,
-            password_ciphertext=rotated.ciphertext,
-            password_nonce=rotated.nonce,
-            encryption_key_version=_KEY_VERSION,
+            encrypted_username=username,
+            encrypted_password=rotated,
+            user_domain_name="Default",
+            rotated_at=datetime.now(UTC),
         )
         await uow.commit()
     async with db_session_factory() as session:

@@ -11,7 +11,6 @@ from tests.integration.db.seed_helpers import (
     VALID_NONCE,
     assert_integrity_error,
     insert_connection,
-    insert_credential,
     insert_operation,
     insert_provider,
     seed_operation_graph,
@@ -20,69 +19,71 @@ from tests.integration.db.seed_helpers import (
 pytestmark = pytest.mark.integration
 
 
-def test_credential_nonce_too_short(db_tx: psycopg.Connection) -> None:
+def test_provider_credential_nonce_too_short(db_tx: psycopg.Connection) -> None:
     short_nonce = bytes.fromhex("000000000000")
     assert_integrity_error(
         db_tx,
         """
-        INSERT INTO credentials (
-            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
-            encryption_key_version, version
+        INSERT INTO providers (
+            id, name, provider_type, status, username_ciphertext, username_nonce,
+            password_ciphertext, password_nonce, encryption_key_version, version
         )
-        VALUES (%s, %s, %s, %s, %s, 'v1', 1)
+        VALUES (%s, 'short-nonce', 'OPENSTACK', 'ACTIVE', %s, %s, %s, %s, 'v1', 1)
         """,
         (uuid.uuid4(), b"user-cipher", short_nonce, b"\x00", VALID_NONCE),
     )
 
 
-def test_duplicate_credential_encryption_nonce(db_tx: psycopg.Connection) -> None:
-    insert_credential(db_tx, key_version="v1", nonce=VALID_NONCE)
+def test_duplicate_provider_credential_encryption_nonce(db_tx: psycopg.Connection) -> None:
+    insert_provider(db_tx, provider_id=uuid.UUID(int=1))
     assert_integrity_error(
         db_tx,
         """
-        INSERT INTO credentials (
-            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
-            encryption_key_version, version
+        INSERT INTO providers (
+            id, name, provider_type, status, username_ciphertext, username_nonce,
+            password_ciphertext, password_nonce, encryption_key_version, version
         )
-        VALUES (%s, %s, %s, %s, %s, 'v1', 1)
+        VALUES (%s, 'duplicate-nonce', 'OPENSTACK', 'ACTIVE', %s, %s, %s, %s, 'v1', 1)
         """,
-        (uuid.uuid4(), b"user-cipher-2", VALID_NONCE, b"\x01", VALID_NONCE),
+        (
+            uuid.uuid4(),
+            b"user-cipher-2",
+            uuid.uuid4().bytes[:12],
+            b"\x01",
+            uuid.UUID(int=1).bytes[-12:],
+        ),
     )
 
 
 def test_duplicate_provider_connection_identity(db_tx: psycopg.Connection) -> None:
     provider_id = insert_provider(db_tx)
-    credential_id = insert_credential(db_tx)
-    insert_connection(db_tx, provider_id=provider_id, credential_id=credential_id)
+    insert_connection(db_tx, provider_id=provider_id)
     assert_integrity_error(
         db_tx,
         """
         INSERT INTO provider_connections (
-            id, provider_id, credential_id, project_name, project_domain_name,
+            id, provider_id, project_name, project_domain_name,
             region_name, auth_url, interface, verify_tls, status, version
         )
         VALUES (
-            %s, %s, %s, 'demo', 'Default', 'RegionOne',
+            %s, %s, 'demo', 'Default', 'RegionOne',
             'https://keystone.example/v3', 'public', true, 'PENDING_VALIDATION', 1
         )
         """,
-        (uuid.uuid4(), provider_id, credential_id),
+        (uuid.uuid4(), provider_id),
     )
 
 
 def test_different_domain_same_project_region_allowed(db_tx: psycopg.Connection) -> None:
     provider_id = insert_provider(db_tx)
-    credential_id = insert_credential(db_tx)
     insert_connection(
         db_tx,
         provider_id=provider_id,
-        credential_id=credential_id,
         project_domain_name="Default",
     )
     insert_connection(
         db_tx,
         provider_id=provider_id,
-        credential_id=credential_id,
         project_domain_name="OtherDomain",
         connection_id=uuid.uuid4(),
     )
@@ -101,20 +102,19 @@ def test_invalid_provider_type(db_tx: psycopg.Connection) -> None:
 
 def test_invalid_connection_interface(db_tx: psycopg.Connection) -> None:
     provider_id = insert_provider(db_tx)
-    credential_id = insert_credential(db_tx)
     assert_integrity_error(
         db_tx,
         """
         INSERT INTO provider_connections (
-            id, provider_id, credential_id, project_name, project_domain_name,
+            id, provider_id, project_name, project_domain_name,
             region_name, auth_url, interface, verify_tls, status, version
         )
         VALUES (
-            %s, %s, %s, 'demo', 'Default', 'RegionOne',
+            %s, %s, 'demo', 'Default', 'RegionOne',
             'https://keystone.example/v3', 'invalid', true, 'PENDING_VALIDATION', 1
         )
         """,
-        (uuid.uuid4(), provider_id, credential_id),
+        (uuid.uuid4(), provider_id),
     )
 
 
@@ -161,15 +161,15 @@ def test_provider_version_zero(db_tx: psycopg.Connection) -> None:
     )
 
 
-def test_credential_version_zero(db_tx: psycopg.Connection) -> None:
+def test_provider_version_zero_with_valid_owned_credential(db_tx: psycopg.Connection) -> None:
     assert_integrity_error(
         db_tx,
         """
-        INSERT INTO credentials (
-            id, username_ciphertext, username_nonce, password_ciphertext, password_nonce,
-            encryption_key_version, version
+        INSERT INTO providers (
+            id, name, provider_type, status, username_ciphertext, username_nonce,
+            password_ciphertext, password_nonce, encryption_key_version, version
         )
-        VALUES (%s, %s, %s, %s, %s, 'v1', 0)
+        VALUES (%s, 'v0-provider-owned', 'OPENSTACK', 'ACTIVE', %s, %s, %s, %s, 'v1', 0)
         """,
         (uuid.uuid4(), b"user-cipher", VALID_NONCE, b"\x00", VALID_NONCE),
     )
@@ -177,20 +177,19 @@ def test_credential_version_zero(db_tx: psycopg.Connection) -> None:
 
 def test_provider_connection_version_zero(db_tx: psycopg.Connection) -> None:
     provider_id = insert_provider(db_tx)
-    credential_id = insert_credential(db_tx)
     assert_integrity_error(
         db_tx,
         """
         INSERT INTO provider_connections (
-            id, provider_id, credential_id, project_name, project_domain_name,
+            id, provider_id, project_name, project_domain_name,
             region_name, auth_url, interface, verify_tls, status, version
         )
         VALUES (
-            %s, %s, %s, 'demo', 'Default', 'RegionOne',
+            %s, %s, 'demo', 'Default', 'RegionOne',
             'https://keystone.example/v3', 'public', true, 'PENDING_VALIDATION', 0
         )
         """,
-        (uuid.uuid4(), provider_id, credential_id),
+        (uuid.uuid4(), provider_id),
     )
 
 
@@ -370,8 +369,7 @@ def test_null_idempotency_keys_do_not_collide(db_tx: psycopg.Connection) -> None
 
 def test_delete_provider_with_dependent_restricted(db_tx: psycopg.Connection) -> None:
     provider_id = insert_provider(db_tx)
-    credential_id = insert_credential(db_tx)
-    insert_connection(db_tx, provider_id=provider_id, credential_id=credential_id)
+    insert_connection(db_tx, provider_id=provider_id)
     assert_integrity_error(
         db_tx,
         "DELETE FROM providers WHERE id = %s",
