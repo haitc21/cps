@@ -27,9 +27,9 @@ def required_access_for_path(path: str) -> str | None:
     """Return ``admin``, ``member``, or ``None`` when auth is not required."""
     if is_public_path(path):
         return None
-    if path.startswith("/api/v1/admin"):
+    if path == "/api/v1/admin" or path.startswith("/api/v1/admin/"):
         return "admin"
-    if path.startswith("/api/v1"):
+    if path == "/api/v1" or path.startswith("/api/v1/"):
         return "member"
     return None
 
@@ -59,11 +59,9 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         self,
         app: Any,
         *,
-        settings: Settings,
         verifier: KeycloakJwtVerifier | None,
     ) -> None:
         super().__init__(app)
-        self._settings = settings
         self._verifier = verifier
 
     async def dispatch(
@@ -71,9 +69,6 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: RequestResponseEndpoint,
     ) -> Response:
-        if not self._settings.keycloak_auth_enabled:
-            return await call_next(request)
-
         required_access = required_access_for_path(request.url.path)
         if required_access is None:
             return await call_next(request)
@@ -96,7 +91,7 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
         if required_access == "admin" and not principal.can_access_admin_routes():
             return _error_response(request, AuthorizationError().to_common_error(), 403)
-        if required_access == "member" and not principal.can_access_member_routes():
+        if required_access == "member" and not principal.is_member():
             return _error_response(request, AuthorizationError().to_common_error(), 403)
 
         request.state.principal = principal
@@ -117,9 +112,7 @@ def require_admin(request: Request) -> Any:
     return principal
 
 
-def create_keycloak_verifier(settings: Settings) -> KeycloakJwtVerifier | None:
-    if not settings.keycloak_auth_enabled:
-        return None
+def create_keycloak_verifier(settings: Settings) -> KeycloakJwtVerifier:
     return KeycloakJwtVerifier.from_settings(
         issuer=settings.keycloak_issuer,
         client_id=settings.keycloak_client_id,
@@ -133,6 +126,5 @@ def install_keycloak_auth_middleware(app: Any, settings: Settings) -> None:
     app.state.keycloak_verifier = verifier
     app.add_middleware(
         KeycloakAuthMiddleware,
-        settings=settings,
         verifier=verifier,
     )

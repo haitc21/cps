@@ -43,13 +43,6 @@ class Settings(BaseSettings):
     keycloak_issuer_override: str | None = None
     keycloak_audience: str | None = None
     keycloak_jwks_cache_ttl_seconds: int = 300
-    keycloak_auth_enabled: bool | None = None
-
-    @model_validator(mode="after")
-    def validate_keycloak_defaults(self) -> Settings:
-        if self.keycloak_auth_enabled is None:
-            self.keycloak_auth_enabled = self.environment == "production"
-        return self
 
     @property
     def keycloak_issuer(self) -> str:

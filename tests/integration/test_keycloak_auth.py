@@ -67,7 +67,6 @@ def _auth_settings() -> Settings:
     return Settings(
         environment="test",
         _env_file=None,
-        keycloak_auth_enabled=True,
         keycloak_url=KEYCLOAK_URL,
         keycloak_realm=KEYCLOAK_REALM,
         keycloak_client_id=KEYCLOAK_CLIENT_ID,
@@ -77,12 +76,10 @@ def _auth_settings() -> Settings:
 
 def _integration_client(settings: Settings) -> TestClient:
     verifier = create_keycloak_verifier(settings)
-    assert verifier is not None
     app = FastAPI()
     app.state.settings = settings
     app.add_middleware(
         KeycloakAuthMiddleware,
-        settings=settings,
         verifier=verifier,
     )
     app.add_middleware(CorrelationIdMiddleware)
@@ -99,14 +96,15 @@ def _integration_client(settings: Settings) -> TestClient:
 
 
 @pytest.mark.integration
-def test_admin_token_can_call_member_api() -> None:
+def test_admin_token_is_rejected_for_member_api() -> None:
     _require_keycloak()
     token = _fetch_token(ADMIN_USER, ADMIN_PASSWORD)
     client = _integration_client(_auth_settings())
 
     response = client.get("/api/v1/member-probe", headers={"Authorization": f"Bearer {token}"})
 
-    assert response.status_code == 200
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
     assert token not in response.text
 
 

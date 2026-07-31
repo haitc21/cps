@@ -66,31 +66,13 @@ def test_development_settings_load_defaults(monkeypatch: pytest.MonkeyPatch) -> 
     assert settings.rabbitmq_url.startswith("amqp")
 
 
-def test_keycloak_auth_defaults_to_disabled_outside_production(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_keycloak_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CPS_ENVIRONMENT", "development")
-    monkeypatch.delenv("CPS_KEYCLOAK_AUTH_ENABLED", raising=False)
 
     from cps.config import Settings
 
     settings = Settings(_env_file=None)
-    assert settings.keycloak_auth_enabled is False
+    assert settings.keycloak_url == "http://127.0.0.1:8080"
+    assert settings.keycloak_realm == "vnpost"
+    assert settings.keycloak_client_id == "cmp"
     assert settings.keycloak_issuer == "http://127.0.0.1:8080/realms/vnpost"
-
-
-def test_keycloak_auth_defaults_to_enabled_in_production(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import base64
-
-    monkeypatch.setenv("CPS_ENVIRONMENT", "production")
-    monkeypatch.setenv("CPS_DATABASE_URL", "postgresql+psycopg://cps:password@db:5432/cps")
-    monkeypatch.setenv("CPS_RABBITMQ_URL", "amqp://cmp:password@rabbitmq:5672/cmp")
-    monkeypatch.setenv("CPS_CREDENTIAL_KEY_RING", f"v1:{base64.b64encode(b'k' * 32).decode()}")
-    monkeypatch.delenv("CPS_KEYCLOAK_AUTH_ENABLED", raising=False)
-
-    from cps.config import Settings
-
-    settings = Settings(_env_file=None)
-    assert settings.keycloak_auth_enabled is True

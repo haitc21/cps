@@ -24,10 +24,9 @@ Client
   issuer, audience, and signing keys.
 - CPS reads roles from the Keycloak client `cmp`; the supported roles are
   `admin` and `member`.
-- `/api/v1/**` is the member-facing surface. A member is restricted by the
-  organization/workspace context and policy attached to the request.
+- `/api/v1/**` is the member-facing surface and requires the `member` role only.
 - `/api/v1/admin/**` is the CMP administration surface and requires the
-  `admin` role. It manages provider resources and policy such as flavors,
+  `admin` role only. It manages provider resources and policy such as flavors,
   images, availability zones, volume types, networks, quotas, and catalog
   approval.
 - BMS does not authenticate CPS requests or forward a replacement security
@@ -67,7 +66,6 @@ missing client `cmp`, unsupported roles, member access to admin routes,
 organization/workspace ownership violations, and correct `admin`/`member`
 mapping from `resource_access.cmp.roles`.
 
-> Current implementation note: CPS currently has redaction rules for
-> authorization material, but the direct Keycloak JWT converter and route
-> authorization described here must be implemented and tested before claiming
-> the security boundary is complete.
+> Current implementation note: the public CPS app always enforces Keycloak JWT
+> verification on `/api/v1/**` and `/api/v1/admin/**`. Health and metrics
+> endpoints remain public; the internal listener is unaffected.

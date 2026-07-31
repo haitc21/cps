@@ -33,10 +33,10 @@ def test_extract_cmp_roles_reads_resource_access_client_roles() -> None:
     assert extract_cmp_roles(claims, "cmp") == frozenset({"member"})
 
 
-def test_admin_inherits_member_access() -> None:
+def test_admin_does_not_inherit_member_access() -> None:
     roles = normalize_cmp_roles(["admin"])
     assert has_admin_access(roles) is True
-    assert has_member_access(roles) is True
+    assert has_member_access(roles) is False
 
 
 def test_member_cannot_access_admin_routes() -> None:
@@ -55,4 +55,4 @@ def test_principal_exposes_canonical_roles_only() -> None:
     )
     assert principal.roles == frozenset({"admin"})
     assert principal.is_admin() is True
-    assert principal.can_access_member_routes() is True
+    assert principal.can_access_member_routes() is False

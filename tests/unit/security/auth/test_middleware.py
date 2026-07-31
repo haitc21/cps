@@ -19,7 +19,6 @@ def _auth_settings(**overrides: object) -> Settings:
     base = {
         "environment": "test",
         "_env_file": None,
-        "keycloak_auth_enabled": True,
         "keycloak_issuer_override": "http://127.0.0.1:8080/realms/vnpost",
     }
     base.update(overrides)
@@ -55,7 +54,6 @@ def _minimal_auth_app(settings: Settings) -> tuple[FastAPI, KeycloakJwtVerifier]
     app.state.settings = settings
     app.add_middleware(
         KeycloakAuthMiddleware,
-        settings=settings,
         verifier=verifier,
     )
     app.add_middleware(CorrelationIdMiddleware)
@@ -115,14 +113,14 @@ def test_invalid_token_returns_401_without_leaking_token() -> None:
     assert secret_token not in response.text
 
 
-def test_admin_token_can_access_member_and_admin_routes() -> None:
+def test_admin_token_can_access_admin_but_not_member_routes() -> None:
     client = TestClient(_minimal_auth_app(_auth_settings())[0], raise_server_exceptions=False)
     headers = {"Authorization": "Bearer admin-token"}
 
     member_response = client.get("/api/v1/member-probe", headers=headers)
     admin_response = client.get("/api/v1/admin/admin-probe", headers=headers)
 
-    assert member_response.status_code == 200
+    assert member_response.status_code == 403
     assert admin_response.status_code == 200
 
 
@@ -138,15 +136,6 @@ def test_member_token_can_access_member_but_not_admin_routes() -> None:
     assert admin_response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
 
 
-def test_auth_disabled_allows_unauthenticated_access() -> None:
-    settings = _auth_settings(keycloak_auth_enabled=False)
-    client = TestClient(_minimal_auth_app(settings)[0], raise_server_exceptions=False)
-
-    response = client.get("/api/v1/member-probe")
-
-    assert response.status_code == 200
-
-
 def test_required_access_for_path_policy() -> None:
     from cps.security.auth.middleware import is_public_path, required_access_for_path
 
@@ -154,4 +143,6 @@ def test_required_access_for_path_policy() -> None:
     assert is_public_path("/metrics") is True
     assert required_access_for_path("/api/v1/providers") == "member"
     assert required_access_for_path("/api/v1/admin/providers") == "admin"
+    assert required_access_for_path("/api/v1/administered") == "member"
+    assert required_access_for_path("/api/v10/providers") is None
     assert required_access_for_path("/internal/v1/providers/x/resolution") is None

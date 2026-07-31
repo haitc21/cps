@@ -42,7 +42,7 @@ def extract_cmp_roles(claims: dict[str, Any], client_id: str) -> frozenset[str]:
 
 def has_member_access(roles: frozenset[str]) -> bool:
     """Return whether the principal may access member-facing routes."""
-    return CMP_ADMIN in roles or CMP_MEMBER in roles
+    return CMP_MEMBER in roles
 
 
 def has_admin_access(roles: frozenset[str]) -> bool:
