@@ -23,13 +23,14 @@ async def test_new_catalog_types_query_inventory(resource_type) -> None:
         list_catalog_resources=AsyncMock(return_value=([], 0)),
     )
 
-    page = await list_catalog(
+    response = await list_catalog(
         connection_id=uuid.uuid4(),
         resource_type=resource_type,
-        offset=0,
-        limit=50,
+        pagination=SimpleNamespace(offset=0, limit=50, page=1),
         uow=SimpleNamespace(inventory=inventory),
     )
 
     inventory.list_catalog_resources.assert_awaited_once()
-    assert page.page["total"] == 0
+    assert response.data is not None
+    assert response.data.total == 0
+    assert response.data.page == 1

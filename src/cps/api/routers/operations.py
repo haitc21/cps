@@ -5,10 +5,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.pagination import PaginationParams, resolve_pagination
 from cps.api.prefixes import admin_operation_status_url, member_operation_status_url
+from cps.api.response import api_success, paged_from_offset
 from cps.api.schemas.identity import (
     IdentityLifecycleRequest,
     QuotaRequestBody,
@@ -19,14 +21,14 @@ from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequ
 from cps.api.schemas.keypair import KeypairOperationBody
 from cps.api.schemas.network import NetworkOperationBody
 from cps.api.schemas.operations import (
-    OperationEventPage,
-    OperationPage,
+    OperationEventView,
     OperationView,
     ValidationAccepted,
 )
 from cps.api.schemas.volume import VolumeAttachmentOperationBody, VolumeOperationBody
 from cps.api.schemas.volume_snapshot import VolumeSnapshotOperationBody
 from cps.application.operations import OperationApplicationService
+from cps.contracts.api_response import BaseResponse, PagedData
 from cps.contracts.messages.identity import (
     IdentityOperation,
     IdentityResourceRequest,
@@ -57,9 +59,20 @@ def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:
 IdentityRequest = IdentityResourceRequest | RoleAssignmentRequest | QuotaRequest
 
 
+def _accepted(
+    operation: OperationView,
+    *,
+    status_url: str,
+) -> BaseResponse[ValidationAccepted]:
+    return api_success(
+        ValidationAccepted(operation=operation, status_url=status_url),
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+
+
 @member_router.post(
     "/provider-connections/{connection_id}/network-operations",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def network_operation(
@@ -68,7 +81,7 @@ async def network_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -83,15 +96,12 @@ async def network_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/volumes",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def volume_operation(
@@ -100,7 +110,7 @@ async def volume_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -115,15 +125,12 @@ async def volume_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/volume-snapshots",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def volume_snapshot_operation(
@@ -132,7 +139,7 @@ async def volume_snapshot_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -147,15 +154,12 @@ async def volume_snapshot_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/keypairs",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def keypair_operation(
@@ -164,7 +168,7 @@ async def keypair_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -179,15 +183,12 @@ async def keypair_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/volume-attachments",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def volume_attachment_operation(
@@ -196,7 +197,7 @@ async def volume_attachment_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -211,10 +212,7 @@ async def volume_attachment_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 async def _identity_operation(
@@ -223,7 +221,7 @@ async def _identity_operation(
     http_request: Request,
     idempotency_key: str | None,
     uow: SqlAlchemyUnitOfWork,
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -235,15 +233,12 @@ async def _identity_operation(
         request=request,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=admin_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
 
 
 @admin_router.post(
     "/provider-connections/{connection_id}/{resource_type}/{action}",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def identity_lifecycle(
@@ -254,7 +249,7 @@ async def identity_lifecycle(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if resource_type not in {"domains", "projects"} or action not in {
         "create",
         "update",
@@ -279,7 +274,7 @@ async def identity_lifecycle(
 
 @admin_router.post(
     "/provider-connections/{connection_id}/role-assignments",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def role_assignment(
@@ -288,7 +283,7 @@ async def role_assignment(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     role_payload = body.model_dump(exclude={"scope_kind"})
     typed = RoleAssignmentRequest(
         operation_id=new_uuid7(),
@@ -301,7 +296,7 @@ async def role_assignment(
 
 @admin_router.post(
     "/provider-connections/{connection_id}/quotas",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def quota_operation(
@@ -310,7 +305,7 @@ async def quota_operation(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     typed = QuotaRequest(
         operation_id=new_uuid7(),
         provider_connection_id=connection_id,
@@ -322,7 +317,7 @@ async def quota_operation(
 
 @admin_router.post(
     "/provider-connections/{connection_id}/validate",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def validate_connection(
@@ -330,7 +325,7 @@ async def validate_connection(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -340,15 +335,12 @@ async def validate_connection(
         connection_id, idempotency_key=idempotency_key, correlation_id=correlation_id
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=admin_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
 
 
 @admin_router.post(
     "/provider-connections/{connection_id}/inventory-syncs",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_inventory_sync(
@@ -357,7 +349,7 @@ async def create_inventory_sync(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -370,15 +362,12 @@ async def create_inventory_sync(
         batch_size=body.batch_size,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=admin_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
 
 
 @admin_router.post(
     "/provider-connections/{connection_id}/inventory-refreshes",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_inventory_refresh(
@@ -387,7 +376,7 @@ async def create_inventory_refresh(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -400,15 +389,12 @@ async def create_inventory_refresh(
         provider_resource_id=body.provider_resource_id,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=admin_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/instances",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_instance(
@@ -417,7 +403,7 @@ async def create_instance(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -429,15 +415,12 @@ async def create_instance(
         request=body,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 @member_router.post(
     "/provider-connections/{connection_id}/instances/{instance_provider_resource_id}/{action}",
-    response_model=ValidationAccepted,
+    response_model=BaseResponse[ValidationAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def instance_action(
@@ -448,7 +431,7 @@ async def instance_action(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> ValidationAccepted:
+) -> BaseResponse[ValidationAccepted]:
     if not idempotency_key:
         from cps.contracts.errors import InvalidRequestError
 
@@ -472,60 +455,83 @@ async def instance_action(
         rebuild_image_provider_resource_id=body.rebuild_image_provider_resource_id,
     )
     await uow.commit()
-    return ValidationAccepted(
-        operation=operation,
-        status_url=member_operation_status_url(operation.id),
-    )
+    return _accepted(operation, status_url=member_operation_status_url(operation.id))
 
 
 async def list_operations(
-    offset: int = Query(default=0, ge=0),  # noqa: B008
-    limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
+    pagination: PaginationParams = Depends(resolve_pagination),  # noqa: B008
     provider_connection_id: uuid.UUID | None = None,
     operation_type: str | None = None,
     state: OperationState | None = None,
     created_from: datetime | None = None,
     created_to: datetime | None = None,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> OperationPage:
-    return await _service(uow).list(
-        offset=offset,
-        limit=limit,
+) -> BaseResponse[PagedData[OperationView]]:
+    result = await _service(uow).list(
+        offset=pagination.offset,
+        limit=pagination.limit,
         connection_id=provider_connection_id,
         operation_type=operation_type,
         state=state,
         created_from=created_from,
         created_to=created_to,
     )
+    return api_success(
+        paged_from_offset(
+            result.items,
+            offset=pagination.offset,
+            limit=pagination.limit,
+            total=result.page.total,
+        )
+    )
 
 
 async def get_operation(
     operation_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> OperationView:
-    return await _service(uow).get(operation_id)
+) -> BaseResponse[OperationView]:
+    return api_success(await _service(uow).get(operation_id))
 
 
 async def get_operation_events(
     operation_id: uuid.UUID,
-    offset: int = Query(default=0, ge=0),  # noqa: B008
-    limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
+    pagination: PaginationParams = Depends(resolve_pagination),  # noqa: B008
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> OperationEventPage:
-    return await _service(uow).events(operation_id, offset=offset, limit=limit)
+) -> BaseResponse[PagedData[OperationEventView]]:
+    result = await _service(uow).events(
+        operation_id,
+        offset=pagination.offset,
+        limit=pagination.limit,
+    )
+    return api_success(
+        paged_from_offset(
+            result.items,
+            offset=pagination.offset,
+            limit=pagination.limit,
+            total=result.page.total,
+        )
+    )
 
 
 async def get_operation_audit(
     operation_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
-) -> dict[str, object]:
-    return await _service(uow).audit(operation_id)
+) -> BaseResponse[dict[str, object]]:
+    return api_success(await _service(uow).audit(operation_id))
 
 
 for _router in (member_router, admin_router):
-    _router.get("/operations", response_model=OperationPage)(list_operations)
-    _router.get("/operations/{operation_id}", response_model=OperationView)(get_operation)
-    _router.get("/operations/{operation_id}/events", response_model=OperationEventPage)(
-        get_operation_events
+    _router.get("/operations", response_model=BaseResponse[PagedData[OperationView]])(
+        list_operations
     )
-    _router.get("/operations/{operation_id}/audit")(get_operation_audit)
+    _router.get("/operations/{operation_id}", response_model=BaseResponse[OperationView])(
+        get_operation
+    )
+    _router.get(
+        "/operations/{operation_id}/events",
+        response_model=BaseResponse[PagedData[OperationEventView]],
+    )(get_operation_events)
+    _router.get(
+        "/operations/{operation_id}/audit",
+        response_model=BaseResponse[dict[str, object]],
+    )(get_operation_audit)

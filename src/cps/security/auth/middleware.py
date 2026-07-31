@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
 
+from cps.api.response import envelope_from_domain_error
 from cps.config import Settings
-from cps.contracts.errors import AuthenticationError, AuthorizationError, CommonError
+from cps.contracts.errors import AuthenticationError, AuthorizationError
 from cps.security.auth.verifier import JwtVerificationError, KeycloakJwtVerifier
 
 _PUBLIC_PATH_PREFIXES = ("/health/",)
@@ -43,13 +43,11 @@ def _extract_bearer_token(authorization: str | None) -> str | None:
     return token.strip()
 
 
-def _error_response(request: Request, error: CommonError, status_code: int) -> JSONResponse:
-    correlation_id = getattr(request.state, "correlation_id", str(uuid4()))
-    return JSONResponse(
-        status_code=status_code,
-        content={"error": error.model_dump(mode="json"), "correlation_id": correlation_id},
-        headers={"x-correlation-id": correlation_id},
-    )
+def _error_response(
+    request: Request,
+    exc: AuthenticationError | AuthorizationError,
+) -> JSONResponse:
+    return envelope_from_domain_error(request, exc)
 
 
 class KeycloakAuthMiddleware(BaseHTTPMiddleware):
@@ -75,24 +73,23 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
 
         token = _extract_bearer_token(request.headers.get("authorization"))
         if token is None:
-            return _error_response(request, AuthenticationError().to_common_error(), 401)
+            return _error_response(request, AuthenticationError())
 
         if self._verifier is None:
             return _error_response(
                 request,
-                AuthenticationError("Authentication service unavailable").to_common_error(),
-                401,
+                AuthenticationError("Authentication service unavailable"),
             )
 
         try:
             principal = await self._verifier.verify(token)
         except JwtVerificationError:
-            return _error_response(request, AuthenticationError().to_common_error(), 401)
+            return _error_response(request, AuthenticationError())
 
         if required_access == "admin" and not principal.can_access_admin_routes():
-            return _error_response(request, AuthorizationError().to_common_error(), 403)
+            return _error_response(request, AuthorizationError())
         if required_access == "member" and not principal.is_member():
-            return _error_response(request, AuthorizationError().to_common_error(), 403)
+            return _error_response(request, AuthorizationError())
 
         request.state.principal = principal
         return await call_next(request)

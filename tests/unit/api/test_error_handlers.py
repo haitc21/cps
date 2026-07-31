@@ -1,4 +1,4 @@
-"""API error handlers must return the common error envelope."""
+"""API error handlers must return the CMP/BMS BaseResponse envelope."""
 
 from __future__ import annotations
 
@@ -19,18 +19,22 @@ from cps.main import create_app
 
 
 @pytest.mark.parametrize(
-    ("exc", "status_code", "code"),
+    ("exc", "status_code", "error_code"),
     (
         (ResourceNotFoundError("missing"), 404, "NOT_FOUND"),
         (DomainConflictError("conflict"), 409, "CONFLICT"),
-        (CapabilityUnsupportedError("unsupported"), 422, "CAPABILITY_UNSUPPORTED"),
-        (ProviderOperationError(cause="provider failed"), 502, "PROVIDER_ERROR"),
-        (OperationTimeoutError("timed out"), 504, "OPERATION_TIMEOUT"),
-        (AuthenticationError(), 401, "AUTHENTICATION_FAILED"),
-        (AuthorizationError(), 403, "AUTHORIZATION_FAILED"),
+        (CapabilityUnsupportedError("unsupported"), 422, "CAPABILITY_001"),
+        (ProviderOperationError(cause="provider failed"), 502, "EXTERNAL_SERVICE_ERROR"),
+        (OperationTimeoutError("timed out"), 504, "EXTERNAL_SERVICE_ERROR"),
+        (AuthenticationError(), 401, "UNAUTHORIZED"),
+        (AuthorizationError(), 403, "FORBIDDEN"),
     ),
 )
-def test_domain_errors_use_common_envelope(exc: Exception, status_code: int, code: str) -> None:
+def test_domain_errors_use_common_envelope(
+    exc: Exception,
+    status_code: int,
+    error_code: str,
+) -> None:
     app = create_app(Settings(environment="test", _env_file=None))
 
     @app.get("/_test/error")
@@ -38,8 +42,11 @@ def test_domain_errors_use_common_envelope(exc: Exception, status_code: int, cod
         raise exc
 
     response = TestClient(app, raise_server_exceptions=False).get("/_test/error")
+    body = response.json()
     assert response.status_code == status_code
-    assert response.json()["error"]["code"] == code
+    assert body["statusCode"] == status_code
+    assert body["errorCode"] == error_code
+    assert "error" not in body
     assert response.headers["x-correlation-id"]
 
 
@@ -57,8 +64,10 @@ def test_validation_and_internal_errors_use_common_envelope() -> None:
     client = TestClient(app, raise_server_exceptions=False)
     invalid = client.get("/_test/validation")
     internal_response = client.get("/_test/internal")
-    assert (invalid.status_code, invalid.json()["error"]["code"]) == (422, "INVALID_REQUEST")
-    assert (internal_response.status_code, internal_response.json()["error"]["code"]) == (
+    assert invalid.status_code == 400
+    assert invalid.json()["errorCode"] == "VALIDATION_FAILED"
+    assert "fields" in invalid.json()["data"]
+    assert (internal_response.status_code, internal_response.json()["errorCode"]) == (
         500,
         "INTERNAL_ERROR",
     )
@@ -78,7 +87,7 @@ def test_provider_error_does_not_leak_secret_from_cause() -> None:
     response = TestClient(app, raise_server_exceptions=False).get("/_test/provider-secret")
     assert response.status_code == 502
     body = response.text
-    assert response.json()["error"]["message"] == "Provider operation failed"
+    assert response.json()["message"] == "Provider operation failed"
     assert secret not in body
     assert "Bearer leaked" not in body  # pragma: allowlist secret
     assert "Authorization" not in body
@@ -94,7 +103,25 @@ def test_provider_error_ignores_positional_secret_as_public_message() -> None:
 
     response = TestClient(app, raise_server_exceptions=False).get("/_test/provider-positional")
     assert response.status_code == 502
-    assert response.json()["error"]["message"] == "Provider operation failed"
+    assert response.json()["message"] == "Provider operation failed"
     assert leaked not in response.text
     assert "password=leaked" not in response.text  # pragma: allowlist secret
     assert "Bearer token" not in response.text  # pragma: allowlist secret
+
+
+def test_success_envelope_shape() -> None:
+    app = create_app(Settings(environment="test", _env_file=None))
+
+    @app.get("/_test/success")
+    async def success():
+        from cps.api.response import api_success
+
+        return api_success({"ok": True})
+
+    response = TestClient(app, raise_server_exceptions=False).get("/_test/success")
+    body = response.json()
+    assert body["statusCode"] == 200
+    assert body.get("errorCode") is None
+    assert body["message"] == "Success"
+    assert body["data"] == {"ok": True}
+    assert "timestamp" in body

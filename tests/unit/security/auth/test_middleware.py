@@ -96,7 +96,7 @@ def test_missing_token_returns_401_on_protected_route() -> None:
     response = client.get("/api/v1/member-probe")
 
     assert response.status_code == 401
-    assert response.json()["error"]["code"] == "AUTHENTICATION_FAILED"
+    assert response.json()["errorCode"] == "UNAUTHORIZED"
     assert "Bearer" not in response.text
 
 
@@ -133,7 +133,7 @@ def test_member_token_can_access_member_but_not_admin_routes() -> None:
 
     assert member_response.status_code == 200
     assert admin_response.status_code == 403
-    assert admin_response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
+    assert admin_response.json()["errorCode"] == "FORBIDDEN"
 
 
 def test_required_access_for_path_policy() -> None:

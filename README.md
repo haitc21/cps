@@ -38,7 +38,33 @@ docker run --rm --env-file .env -p 8002:8002 cmp-cps \
   cps serve --internal --host 0.0.0.0 --port 8002
 ```
 
-## Quality gates
+## Public API response envelope
+
+All `/api/v1` admin and member endpoints return the CMP/BMS `BaseResponse`
+shape:
+
+```json
+{
+  "statusCode": 200,
+  "message": "Success",
+  "timestamp": "2026-07-31T08:00:00Z",
+  "data": {}
+}
+```
+
+Errors use the same envelope with `errorCode`, `path`, and structured `data`
+(for example validation `fields`). Health (`/health/*`) and `/metrics` remain
+unwrapped operational endpoints. Internal `/internal/v1/*` routes are unchanged.
+
+### Pagination
+
+List endpoints accept legacy `offset` (0-based) **or** canonical 1-based `page`,
+but not both. Responses always emit BMS pagination metadata on `data`:
+
+`items`, `page`, `limit`, `total`, `totalPages` with
+`page = (offset // limit) + 1`. `offset` remains accepted for one release
+cycle; new clients should send `page`.
+
 
 ```bash
 uv sync --frozen --all-extras

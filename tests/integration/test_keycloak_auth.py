@@ -104,7 +104,7 @@ def test_admin_token_is_rejected_for_member_api() -> None:
     response = client.get("/api/v1/member-probe", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
+    assert response.json()["errorCode"] == "FORBIDDEN"
     assert token not in response.text
 
 
@@ -117,7 +117,7 @@ def test_member_token_is_rejected_for_admin_api() -> None:
     response = client.get("/api/v1/admin/admin-probe", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 403
-    assert response.json()["error"]["code"] == "AUTHORIZATION_FAILED"
+    assert response.json()["errorCode"] == "FORBIDDEN"
 
 
 @pytest.mark.integration
