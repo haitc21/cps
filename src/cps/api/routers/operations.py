@@ -46,8 +46,8 @@ from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.security.auth.middleware import require_admin, require_member
 
-member_router = APIRouter(tags=["operations"], dependencies=[Depends(require_member)])
-admin_router = APIRouter(tags=["operations"], dependencies=[Depends(require_admin)])
+member_router = APIRouter(tags=["Operations"], dependencies=[Depends(require_member)])
+admin_router = APIRouter(tags=["Admin Operations"], dependencies=[Depends(require_admin)])
 
 
 def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:

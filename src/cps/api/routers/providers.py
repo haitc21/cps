@@ -25,7 +25,7 @@ from cps.security.auth.middleware import require_admin
 
 router = APIRouter(
     prefix="/providers",
-    tags=["providers"],
+    tags=["Admin Providers"],
     dependencies=[Depends(require_admin)],
 )
 

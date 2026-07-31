@@ -13,7 +13,7 @@ from cps.infrastructure.db.repositories.inventory import InventoryPersistenceErr
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.security.auth.middleware import require_member
 
-router = APIRouter(tags=["inventory"], dependencies=[Depends(require_member)])
+router = APIRouter(tags=["Inventory"], dependencies=[Depends(require_member)])
 
 
 def _view(row: object) -> InventoryResourceView:

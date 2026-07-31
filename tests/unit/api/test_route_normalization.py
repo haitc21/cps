@@ -80,3 +80,12 @@ def test_admin_and_member_surfaces_do_not_overlap() -> None:
     }
 
     assert admin_paths.isdisjoint(member_paths)
+
+
+def test_openapi_tags_identify_admin_and_member_surfaces() -> None:
+    paths = create_app().openapi()["paths"]
+
+    assert paths["/api/v1/admin/providers"]["get"]["tags"] == ["Admin Providers"]
+    assert paths["/api/v1/operations"]["get"]["tags"] == ["Operations"]
+    assert paths["/api/v1/admin/operations"]["get"]["tags"] == ["Admin Operations"]
+    assert paths["/api/v1/{resource_type}"]["get"]["tags"] == ["Inventory"]

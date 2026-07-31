@@ -19,11 +19,11 @@ from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.security.auth.middleware import require_admin, require_member
 
 admin_router = APIRouter(
-    tags=["provider-connections"],
+    tags=["Admin Provider Connections"],
     dependencies=[Depends(require_admin)],
 )
 member_router = APIRouter(
-    tags=["provider-connections"],
+    tags=["Provider Connections"],
     dependencies=[Depends(require_member)],
 )
 

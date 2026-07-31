@@ -14,7 +14,7 @@ from cps.infrastructure.db.repositories.inventory import InventoryPersistenceErr
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
 from cps.security.auth.middleware import require_admin
 
-router = APIRouter(tags=["catalog"], dependencies=[Depends(require_admin)])
+router = APIRouter(tags=["Admin Catalog"], dependencies=[Depends(require_admin)])
 
 
 @router.get(
