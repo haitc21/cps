@@ -391,6 +391,10 @@ class OperationApplicationService:
                 resource_type, connection.id, provider_resource_id
             ):
                 raise CatalogPolicyViolationError
+        if request.availability_zone and not await self._inventory_resource_is_catalog_approved(
+            "availability-zone", connection.id, request.availability_zone
+        ):
+            raise CatalogPolicyViolationError
         operation_id = _uuid7()
         message_id = _uuid7()
         occurred_at = datetime.now(UTC)
@@ -912,6 +916,16 @@ class OperationApplicationService:
         }.get(request.operation.value)
         if message_type is None:
             raise ValueError("unsupported volume operation")
+        if request.operation.value == "create":
+            catalog_references = (
+                ("volume-type", request.volume_type_provider_resource_id),
+                ("availability-zone", request.availability_zone),
+            )
+            for resource_type, provider_resource_id in catalog_references:
+                if provider_resource_id and not await self._inventory_resource_is_catalog_approved(
+                    resource_type, connection.id, provider_resource_id
+                ):
+                    raise CatalogPolicyViolationError
 
         parameters = dict(request.parameters)
         for field in (

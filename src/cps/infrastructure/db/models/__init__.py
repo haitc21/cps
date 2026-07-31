@@ -5,6 +5,7 @@ from __future__ import annotations
 from cps.infrastructure.db.models.identity_bindings import IdentityBinding
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
+    AvailabilityZone,
     Flavor,
     FloatingIP,
     IdentityDomain,
@@ -26,6 +27,7 @@ from cps.infrastructure.db.models.inventory import (
     Subnet,
     Volume,
     VolumeSnapshot,
+    VolumeType,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.operation_events import OperationEvent
@@ -42,6 +44,7 @@ __all__ = [
     "RoleAssignment",
     "Quota",
     "Flavor",
+    "AvailabilityZone",
     "Image",
     "Instance",
     "Network",
@@ -53,6 +56,7 @@ __all__ = [
     "Subnet",
     "Port",
     "Volume",
+    "VolumeType",
     "VolumeSnapshot",
     "Keypair",
     "InstancePort",

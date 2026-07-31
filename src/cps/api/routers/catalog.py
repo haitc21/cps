@@ -27,11 +27,6 @@ async def list_catalog(
     limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> CatalogPage:
-    if resource_type in {
-        CatalogResourceType.VOLUME_TYPE,
-        CatalogResourceType.AVAILABILITY_ZONE,
-    }:
-        return CatalogPage(items=[], page={"offset": offset, "limit": limit, "total": 0})
     try:
         rows, total = await uow.inventory.list_catalog_resources(
             resource_type.value,

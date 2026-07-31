@@ -14,7 +14,7 @@ selecting only administrator-approved catalog and external-network resources.
 |---|---:|---|---|---|
 | CPS-1701 Instance resize and rebuild | 13 | CPS | OPS-1701 | Done |
 | CPS-1702 Instance console access | 5 | CPS | OPS-1702 | Deferred — chưa ưu tiên |
-| CPS-1703 Admin-curated resource catalog policy | 8 | CPS | OPS-1703 | In progress — tag policy selected |
+| CPS-1703 Admin-curated resource catalog policy | 8 | CPS | OPS-1703 | Done |
 | CPS-1704 Tenant network guardrails | 8 | CPS | OPS-1704 | In progress |
 
 ## Task backlog
@@ -23,7 +23,7 @@ selecting only administrator-approved catalog and external-network resources.
 |---|---|---|---|
 | [CPS-1701](../tasks/sprint-17/CPS-1701-instance-resize-rebuild.md) | Resize confirm/revert and policy-safe rebuild | CPS-403, CPS-1203 | Done |
 | [CPS-1702](../tasks/sprint-17/CPS-1702-instance-console.md) | Ephemeral capability-gated console access | CPS-403, CPS-1203 | Deferred — chưa ưu tiên |
-| [CPS-1703](../tasks/sprint-17/CPS-1703-curated-catalog-policy.md) | Approved image/flavor/AZ/volume-type/external-network selection | CPS-304, CPS-1203 | In progress |
+| [CPS-1703](../tasks/sprint-17/CPS-1703-curated-catalog-policy.md) | Approved image/flavor/AZ/volume-type/external-network selection | CPS-304, CPS-1203 | Done |
 | [CPS-1704](../tasks/sprint-17/CPS-1704-network-guardrails.md) | CIDR, external-network, rule, quota, and ownership policy | CPS-902..905, CPS-1203 | In progress |
 
 ## Execution sequence
@@ -50,12 +50,15 @@ selecting only administrator-approved catalog and external-network resources.
 |---|---|---|---|
 | Console URL behaves like a bearer secret | CPS/OPS | Deferred; require non-durable response port, TTL, redaction, and threat review before activation | Deferred |
 | Resize needs user confirmation | CPS/OPS | Explicit confirm/revert state machine and timeout policy | Resolved |
-| Admin catalog policy source is undefined | Product/CPS | Approve metadata/tag/DB allow-list source before coding | Open |
+| Admin catalog policy source is undefined | Product/CPS | Provider metadata/tag convention implemented; Nova AZ approval maps host-aggregate metadata | Resolved |
 
 ## Review evidence
 
 - Policy/design approval: provider metadata/tag convention selected;
   `cmp-catalog-approved=true` is the admin marker.
+- Curated catalogs: typed image, flavor, network, volume-type, and
+  availability-zone inventory and fail-closed consumer validation pass full
+  CPS/OPS quality gates.
 - Resize/rebuild recovery: CPS/OPS full tests plus live resize, revert, rebuild,
   final confirm, SSH verification, and zero-residual disposable-flavor cleanup.
 - Console redaction:

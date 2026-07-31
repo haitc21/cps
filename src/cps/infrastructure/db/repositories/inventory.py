@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from cps.contracts.messages.inventory import InventoryBatchPayload, InventoryCollectionStatus
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.inventory import (
+    AvailabilityZone,
     Flavor,
     FloatingIP,
     IdentityDomain,
@@ -35,6 +36,7 @@ from cps.infrastructure.db.models.inventory import (
     Subnet,
     Volume,
     VolumeSnapshot,
+    VolumeType,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.provider_connections import ProviderConnection
@@ -46,6 +48,7 @@ RESOURCE_MODELS: dict[str, Any] = {
     "role-assignment": RoleAssignment,
     "quota": Quota,
     "flavor": Flavor,
+    "availability-zone": AvailabilityZone,
     "image": Image,
     "instance": Instance,
     "network": Network,
@@ -56,6 +59,7 @@ RESOURCE_MODELS: dict[str, Any] = {
     "security-group-rule": SecurityGroupRule,
     "floating-ip": FloatingIP,
     "volume": Volume,
+    "volume-type": VolumeType,
     "volume-snapshot": VolumeSnapshot,
     "keypair": Keypair,
 }
@@ -739,6 +743,10 @@ class InventoryRepository:
                 in_use=item.get("in_use", attrs.get("in_use")),
                 unlimited=unlimited,
             )
+        if model is AvailabilityZone:
+            values["available"] = item.get("available", attrs.get("available"))
+        if model is VolumeType:
+            values["is_public"] = item.get("is_public", attrs.get("is_public"))
         if model is Volume:
             values.update(
                 size_gib=item.get("size_gib", attrs.get("size")),
@@ -806,7 +814,15 @@ class InventoryRepository:
             )
         elif model is IdentityDomain:
             conflict_set["enabled"] = statement.excluded.enabled
-        elif model in (RoleAssignment, Quota, Volume, VolumeSnapshot, Keypair):
+        elif model in (
+            RoleAssignment,
+            Quota,
+            AvailabilityZone,
+            VolumeType,
+            Volume,
+            VolumeSnapshot,
+            Keypair,
+        ):
             # Keep all typed fields synchronized while preserving the generic
             # provider attributes used by older consumers.
             typed = {

@@ -14,6 +14,11 @@ from cps.contracts.messages.inventory import (
 )
 
 
+def test_catalog_inventory_resource_types_are_canonical() -> None:
+    assert InventoryResourceType.AVAILABILITY_ZONE.value == "availability-zone"
+    assert InventoryResourceType.VOLUME_TYPE.value == "volume-type"
+
+
 def _item() -> dict[str, object]:
     return {
         "provider_resource_id": "server-1",

@@ -8,6 +8,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from cps.infrastructure.db.models.inbox_messages import InboxMessage
 from cps.infrastructure.db.models.inventory import (
+    AvailabilityZone,
     Flavor,
     Image,
     Instance,
@@ -20,6 +21,7 @@ from cps.infrastructure.db.models.inventory import (
     Subnet,
     Volume,
     VolumeSnapshot,
+    VolumeType,
 )
 from cps.infrastructure.db.models.inventory_sync import InventoryBatch, InventorySync
 from cps.infrastructure.db.models.operation_events import OperationEvent
@@ -38,12 +40,14 @@ MODELS: tuple[type[DeclarativeBase], ...] = (
     Region,
     Project,
     Flavor,
+    AvailabilityZone,
     Image,
     Instance,
     Network,
     Subnet,
     Port,
     Volume,
+    VolumeType,
     VolumeSnapshot,
     InstancePort,
     InstanceVolume,
@@ -134,7 +138,19 @@ def test_outbox_created_at_uses_server_default() -> None:
 
 @pytest.mark.parametrize(
     "model",
-    [Region, Project, Flavor, Image, Instance, Network, Subnet, Port, Volume],
+    [
+        Region,
+        Project,
+        Flavor,
+        AvailabilityZone,
+        Image,
+        Instance,
+        Network,
+        Subnet,
+        Port,
+        Volume,
+        VolumeType,
+    ],
 )
 def test_inventory_models_have_common_identity_and_lifecycle_fields(model) -> None:
     columns = set(model.__table__.columns.keys())
@@ -150,7 +166,19 @@ def test_inventory_models_have_common_identity_and_lifecycle_fields(model) -> No
 
 
 def test_inventory_identity_is_unique_per_connection() -> None:
-    for model in (Region, Project, Flavor, Image, Instance, Network, Subnet, Port, Volume):
+    for model in (
+        Region,
+        Project,
+        Flavor,
+        AvailabilityZone,
+        Image,
+        Instance,
+        Network,
+        Subnet,
+        Port,
+        Volume,
+        VolumeType,
+    ):
         unique_constraints = {
             constraint.name for constraint in model.__table__.constraints if constraint.name
         }

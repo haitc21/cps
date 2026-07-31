@@ -153,6 +153,12 @@ class Flavor(Base, InventoryResourceMixin):
     enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
+class AvailabilityZone(Base, InventoryResourceMixin):
+    __tablename__ = "availability_zones"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    available: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+
 class Image(Base, InventoryResourceMixin, ProjectOwnershipMixin):
     __tablename__ = "images"
     __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
@@ -287,6 +293,12 @@ class Volume(Base, InventoryResourceMixin, ProjectOwnershipMixin):
         JSONB, nullable=False, server_default="{}"
     )
     attachments: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="[]")
+
+
+class VolumeType(Base, InventoryResourceMixin):
+    __tablename__ = "volume_types"
+    __table_args__ = InventoryResourceMixin.common_constraints(__tablename__)
+    is_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
 class VolumeSnapshot(Base, InventoryResourceMixin, ProjectOwnershipMixin):
