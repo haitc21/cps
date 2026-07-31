@@ -1,4 +1,4 @@
-"""Public provider CRUD endpoints."""
+"""Admin provider CRUD endpoints."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.prefixes import admin_operation_status_url
 from cps.api.schemas.bindings import (
     IdentityBindingAccepted,
     IdentityBindingView,
@@ -20,8 +21,13 @@ from cps.application.providers import ProviderService
 from cps.contracts.errors import CredentialKeyUnavailableError
 from cps.infrastructure.db.models.enums import ProviderStatus
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from cps.security.auth.middleware import require_admin
 
-router = APIRouter(prefix="/api/v1/providers", tags=["providers"])
+router = APIRouter(
+    prefix="/providers",
+    tags=["providers"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 def _service(uow: SqlAlchemyUnitOfWork) -> ProviderService:
@@ -102,7 +108,7 @@ async def create_identity_domain_binding(
     return IdentityBindingAccepted(
         binding=IdentityBindingView.model_validate(binding, from_attributes=True),
         operation=operation,
-        status_url=f"/api/v1/operations/{operation.id}",
+        status_url=admin_operation_status_url(operation.id),
     )
 
 
@@ -132,7 +138,7 @@ async def create_identity_project_binding(
     return IdentityBindingAccepted(
         binding=IdentityBindingView.model_validate(binding, from_attributes=True),
         operation=operation,
-        status_url=f"/api/v1/operations/{operation.id}",
+        status_url=admin_operation_status_url(operation.id),
     )
 
 

@@ -112,6 +112,13 @@ def require_admin(request: Request) -> Any:
     return principal
 
 
+def require_member(request: Request) -> Any:
+    principal = get_current_principal(request)
+    if not principal.is_member():
+        raise AuthorizationError
+    return principal
+
+
 def create_keycloak_verifier(settings: Settings) -> KeycloakJwtVerifier:
     return KeycloakJwtVerifier.from_settings(
         issuer=settings.keycloak_issuer,

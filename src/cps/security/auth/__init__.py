@@ -9,6 +9,7 @@ from cps.security.auth.middleware import (
     install_keycloak_auth_middleware,
     is_public_path,
     require_admin,
+    require_member,
     required_access_for_path,
 )
 from cps.security.auth.principal import AuthenticatedPrincipal
@@ -29,5 +30,6 @@ __all__ = [
     "is_public_path",
     "normalize_cmp_roles",
     "require_admin",
+    "require_member",
     "required_access_for_path",
 ]

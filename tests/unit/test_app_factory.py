@@ -36,7 +36,9 @@ def test_internal_resolver_has_a_separate_listener_surface() -> None:
     assert "/internal/v1/connections/{provider_connection_id}/resolution" in internal_paths
     assert "/internal/v1/providers/{provider_id}/resolution" not in public_paths
     assert "/internal/v1/providers/{provider_id}/resolution" in internal_paths
-    assert "/api/v1/providers" not in internal_paths
+    assert "/api/v1/admin/providers" in public_paths
+    assert "/api/v1/providers" not in public_paths
+    assert "/api/v1/admin/providers" not in internal_paths
 
 
 def test_dependencies_exclude_openstacksdk() -> None:

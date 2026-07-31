@@ -141,8 +141,9 @@ def test_required_access_for_path_policy() -> None:
 
     assert is_public_path("/health/live") is True
     assert is_public_path("/metrics") is True
-    assert required_access_for_path("/api/v1/providers") == "member"
+    assert required_access_for_path("/api/v1/operations") == "member"
     assert required_access_for_path("/api/v1/admin/providers") == "admin"
+    assert required_access_for_path("/api/v1/admin/operations") == "admin"
     assert required_access_for_path("/api/v1/administered") == "member"
     assert required_access_for_path("/api/v10/providers") is None
     assert required_access_for_path("/internal/v1/providers/x/resolution") is None

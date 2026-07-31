@@ -11,15 +11,16 @@ from cps.api.schemas.inventory import InventoryPage, InventoryResourceView
 from cps.contracts.errors import ResourceNotFoundError
 from cps.infrastructure.db.repositories.inventory import InventoryPersistenceError
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from cps.security.auth.middleware import require_member
 
-router = APIRouter(tags=["inventory"])
+router = APIRouter(tags=["inventory"], dependencies=[Depends(require_member)])
 
 
 def _view(row: object) -> InventoryResourceView:
     return InventoryResourceView.model_validate(row, from_attributes=True)
 
 
-@router.get("/api/v1/{resource_type}", response_model=InventoryPage)
+@router.get("/{resource_type}", response_model=InventoryPage)
 async def list_inventory(
     resource_type: str,
     offset: int = Query(default=0, ge=0),  # noqa: B008
@@ -54,7 +55,7 @@ async def list_inventory(
     )
 
 
-@router.get("/api/v1/{resource_type}/{resource_id}", response_model=InventoryResourceView)
+@router.get("/{resource_type}/{resource_id}", response_model=InventoryResourceView)
 async def get_inventory(
     resource_type: str,
     resource_id: uuid.UUID,

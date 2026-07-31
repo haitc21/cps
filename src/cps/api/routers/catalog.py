@@ -12,12 +12,13 @@ from cps.api.schemas.inventory import InventoryResourceView
 from cps.contracts.errors import ResourceNotFoundError
 from cps.infrastructure.db.repositories.inventory import InventoryPersistenceError
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from cps.security.auth.middleware import require_admin
 
-router = APIRouter(tags=["catalog"])
+router = APIRouter(tags=["catalog"], dependencies=[Depends(require_admin)])
 
 
 @router.get(
-    "/api/v1/provider-connections/{connection_id}/catalog",
+    "/provider-connections/{connection_id}/catalog",
     response_model=CatalogPage,
 )
 async def list_catalog(

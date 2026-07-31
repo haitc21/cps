@@ -8,6 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 
 from cps.api.dependencies import get_uow
+from cps.api.prefixes import admin_operation_status_url, member_operation_status_url
 from cps.api.schemas.identity import (
     IdentityLifecycleRequest,
     QuotaRequestBody,
@@ -43,8 +44,10 @@ from cps.contracts.messages.volume_snapshot_operations import VolumeSnapshotOper
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from cps.security.auth.middleware import require_admin, require_member
 
-router = APIRouter(tags=["operations"])
+member_router = APIRouter(tags=["operations"], dependencies=[Depends(require_member)])
+admin_router = APIRouter(tags=["operations"], dependencies=[Depends(require_admin)])
 
 
 def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:
@@ -54,8 +57,8 @@ def _service(uow: SqlAlchemyUnitOfWork) -> OperationApplicationService:
 IdentityRequest = IdentityResourceRequest | RoleAssignmentRequest | QuotaRequest
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/network-operations",
+@member_router.post(
+    "/provider-connections/{connection_id}/network-operations",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -80,11 +83,14 @@ async def network_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/volumes",
+@member_router.post(
+    "/provider-connections/{connection_id}/volumes",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -109,11 +115,14 @@ async def volume_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/volume-snapshots",
+@member_router.post(
+    "/provider-connections/{connection_id}/volume-snapshots",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -138,11 +147,14 @@ async def volume_snapshot_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/keypairs",
+@member_router.post(
+    "/provider-connections/{connection_id}/keypairs",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -167,11 +179,14 @@ async def keypair_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/volume-attachments",
+@member_router.post(
+    "/provider-connections/{connection_id}/volume-attachments",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -196,7 +211,10 @@ async def volume_attachment_operation(
         request=typed,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
 async def _identity_operation(
@@ -217,11 +235,14 @@ async def _identity_operation(
         request=request,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=admin_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/{resource_type}/{action}",
+@admin_router.post(
+    "/provider-connections/{connection_id}/{resource_type}/{action}",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -256,8 +277,8 @@ async def identity_lifecycle(
     return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/role-assignments",
+@admin_router.post(
+    "/provider-connections/{connection_id}/role-assignments",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -278,8 +299,8 @@ async def role_assignment(
     return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/quotas",
+@admin_router.post(
+    "/provider-connections/{connection_id}/quotas",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -299,8 +320,8 @@ async def quota_operation(
     return await _identity_operation(connection_id, typed, request, idempotency_key, uow)
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/validate",
+@admin_router.post(
+    "/provider-connections/{connection_id}/validate",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -321,12 +342,12 @@ async def validate_connection(
     await uow.commit()
     return ValidationAccepted(
         operation=operation,
-        status_url=f"/api/v1/operations/{operation.id}",
+        status_url=admin_operation_status_url(operation.id),
     )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/inventory-syncs",
+@admin_router.post(
+    "/provider-connections/{connection_id}/inventory-syncs",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -349,11 +370,14 @@ async def create_inventory_sync(
         batch_size=body.batch_size,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=admin_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/inventory-refreshes",
+@admin_router.post(
+    "/provider-connections/{connection_id}/inventory-refreshes",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -376,11 +400,14 @@ async def create_inventory_refresh(
         provider_resource_id=body.provider_resource_id,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=admin_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/instances",
+@member_router.post(
+    "/provider-connections/{connection_id}/instances",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -402,11 +429,14 @@ async def create_instance(
         request=body,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.post(
-    "/api/v1/provider-connections/{connection_id}/instances/{instance_provider_resource_id}/{action}",
+@member_router.post(
+    "/provider-connections/{connection_id}/instances/{instance_provider_resource_id}/{action}",
     response_model=ValidationAccepted,
     status_code=status.HTTP_202_ACCEPTED,
 )
@@ -442,10 +472,12 @@ async def instance_action(
         rebuild_image_provider_resource_id=body.rebuild_image_provider_resource_id,
     )
     await uow.commit()
-    return ValidationAccepted(operation=operation, status_url=f"/api/v1/operations/{operation.id}")
+    return ValidationAccepted(
+        operation=operation,
+        status_url=member_operation_status_url(operation.id),
+    )
 
 
-@router.get("/api/v1/operations", response_model=OperationPage)
 async def list_operations(
     offset: int = Query(default=0, ge=0),  # noqa: B008
     limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
@@ -467,7 +499,6 @@ async def list_operations(
     )
 
 
-@router.get("/api/v1/operations/{operation_id}", response_model=OperationView)
 async def get_operation(
     operation_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
@@ -475,7 +506,6 @@ async def get_operation(
     return await _service(uow).get(operation_id)
 
 
-@router.get("/api/v1/operations/{operation_id}/events", response_model=OperationEventPage)
 async def get_operation_events(
     operation_id: uuid.UUID,
     offset: int = Query(default=0, ge=0),  # noqa: B008
@@ -485,9 +515,17 @@ async def get_operation_events(
     return await _service(uow).events(operation_id, offset=offset, limit=limit)
 
 
-@router.get("/api/v1/operations/{operation_id}/audit")
 async def get_operation_audit(
     operation_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> dict[str, object]:
     return await _service(uow).audit(operation_id)
+
+
+for _router in (member_router, admin_router):
+    _router.get("/operations", response_model=OperationPage)(list_operations)
+    _router.get("/operations/{operation_id}", response_model=OperationView)(get_operation)
+    _router.get("/operations/{operation_id}/events", response_model=OperationEventPage)(
+        get_operation_events
+    )
+    _router.get("/operations/{operation_id}/audit")(get_operation_audit)

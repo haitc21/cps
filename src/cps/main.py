@@ -9,10 +9,13 @@ from fastapi import FastAPI
 
 from cps.api.errors import register_error_handlers
 from cps.api.health import router as health_router
+from cps.api.prefixes import ADMIN_API_PREFIX, MEMBER_API_PREFIX
 from cps.api.routers.catalog import router as catalog_router
-from cps.api.routers.connections import router as connections_router
+from cps.api.routers.connections import admin_router as connections_admin_router
+from cps.api.routers.connections import member_router as connections_member_router
 from cps.api.routers.inventory import router as inventory_router
-from cps.api.routers.operations import router as operations_router
+from cps.api.routers.operations import admin_router as operations_admin_router
+from cps.api.routers.operations import member_router as operations_member_router
 from cps.api.routers.providers import router as providers_router
 from cps.config import Settings, get_settings
 from cps.infrastructure.db.engine import create_database_engine
@@ -64,11 +67,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the public CPS application; internal routes use a separate listener."""
     resolved = settings or get_settings()
     app, _engine = _create_base_app(resolved, title="CPS", enable_keycloak_auth=True)
-    app.include_router(providers_router)
-    app.include_router(connections_router)
-    app.include_router(catalog_router)
-    app.include_router(operations_router)
-    app.include_router(inventory_router)
+    app.include_router(providers_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(connections_admin_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(connections_member_router, prefix=MEMBER_API_PREFIX)
+    app.include_router(catalog_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(operations_admin_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(operations_member_router, prefix=MEMBER_API_PREFIX)
+    app.include_router(inventory_router, prefix=MEMBER_API_PREFIX)
     return app
 
 

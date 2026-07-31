@@ -1,4 +1,4 @@
-"""Public provider connection endpoints."""
+"""Provider connection admin and member capability endpoints."""
 
 from __future__ import annotations
 
@@ -16,16 +16,24 @@ from cps.api.schemas.connections import (
 from cps.application.connections import ConnectionService
 from cps.infrastructure.db.models.enums import ConnectionStatus
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
+from cps.security.auth.middleware import require_admin, require_member
 
-router = APIRouter(tags=["provider-connections"])
+admin_router = APIRouter(
+    tags=["provider-connections"],
+    dependencies=[Depends(require_admin)],
+)
+member_router = APIRouter(
+    tags=["provider-connections"],
+    dependencies=[Depends(require_member)],
+)
 
 
 def _service(uow: SqlAlchemyUnitOfWork) -> ConnectionService:
     return ConnectionService(uow.providers)
 
 
-@router.post(
-    "/api/v1/providers/{provider_id}/connections",
+@admin_router.post(
+    "/providers/{provider_id}/connections",
     response_model=ConnectionView,
     status_code=status.HTTP_201_CREATED,
 )
@@ -39,7 +47,7 @@ async def create_connection(
     return result
 
 
-@router.get("/api/v1/provider-connections/{connection_id}", response_model=ConnectionView)
+@admin_router.get("/provider-connections/{connection_id}", response_model=ConnectionView)
 async def get_connection(
     connection_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
@@ -47,7 +55,7 @@ async def get_connection(
     return await _service(uow).get(connection_id)
 
 
-@router.get("/api/v1/provider-connections", response_model=ConnectionPage)
+@admin_router.get("/provider-connections", response_model=ConnectionPage)
 async def list_connections(
     offset: int = Query(default=0, ge=0),  # noqa: B008
     limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
@@ -67,7 +75,7 @@ async def list_connections(
     )
 
 
-@router.get("/api/v1/provider-connections/{connection_id}/capabilities")
+@member_router.get("/provider-connections/{connection_id}/capabilities")
 async def get_capabilities(
     connection_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
@@ -80,7 +88,7 @@ async def get_capabilities(
     return connection.capabilities
 
 
-@router.patch("/api/v1/provider-connections/{connection_id}", response_model=ConnectionView)
+@admin_router.patch("/provider-connections/{connection_id}", response_model=ConnectionView)
 async def update_connection(
     connection_id: uuid.UUID,
     body: ConnectionPatch,

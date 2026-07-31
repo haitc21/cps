@@ -17,14 +17,15 @@ OpenStack authentication methods, UI work, and CI pipeline work are not part of 
 
 ## 2. Public CPS resources
 
-All public routes are under `/api/v1`. IDs created by CPS are UUIDv7. Timestamps are UTC. Public
+Provider onboarding and administration routes are under `/api/v1/admin`; member inventory and
+consumer routes are under `/api/v1`. IDs created by CPS are UUIDv7. Timestamps are UTC. Public
 responses never contain username, password, ciphertext, nonce, encryption-key version, token,
 session, raw service catalog, raw provider response, or credential reference unless that reference
 is explicitly part of safe connection metadata.
 
 ### 2.1 Provider
 
-`POST /api/v1/providers` accepts:
+`POST /api/v1/admin/providers` accepts:
 
 ```json
 {
@@ -36,11 +37,11 @@ is explicitly part of safe connection metadata.
 
 `provider_type` is exactly `OPENSTACK`. The response contains `id`, `name`, `provider_type`,
 `description`, `status`, `version`, `created_at`, and `updated_at`. `PATCH
-/api/v1/providers/{id}` requires `expected_version` and may change `name`, `description`, or
+/api/v1/admin/providers/{id}` requires `expected_version` and may change `name`, `description`, or
 `status`. A referenced provider is disabled instead of physically deleted; Sprint 2 exposes no
 provider DELETE route.
 
-`GET /api/v1/providers` supports `offset` (default 0), `limit` (default 50, maximum 200), exact
+`GET /api/v1/admin/providers` supports `offset` (default 0), `limit` (default 50, maximum 200), exact
 `status`, exact `provider_type`, bounded `name` search, `sort` in `name|created_at|updated_at`, and
 `order` in `asc|desc`. Ordering always appends `id` as a deterministic tie-breaker. List responses
 use `{ "items": [], "page": {"offset": 0, "limit": 50, "total": 0} }`.
@@ -66,7 +67,7 @@ plaintext through migration logs or SQL literals.
 
 ### 2.3 Provider connection
 
-`POST /api/v1/providers/{provider_id}/connections` accepts:
+`POST /api/v1/admin/providers/{provider_id}/connections` accepts:
 
 ```json
 {
@@ -83,12 +84,12 @@ plaintext through migration logs or SQL literals.
 
 A row identifies one `(provider, project_domain_name, project_name, region_name)` tuple. Duplicate
 identity is `409 PROVIDER_CONNECTION_CONFLICT`. Provider and credential must exist and be usable.
-Initial status is `PENDING_VALIDATION`. `PATCH /api/v1/provider-connections/{id}` requires
+Initial status is `PENDING_VALIDATION`. `PATCH /api/v1/admin/provider-connections/{id}` requires
 `expected_version`; changing auth/scope/TLS inputs clears capabilities and validation error and
 returns status to `PENDING_VALIDATION`. Disabling is explicit. Public connection responses omit the
 credential reference and CA body; they expose only `has_custom_ca` for CA metadata.
 
-`GET /api/v1/provider-connections` uses the common page shape and allow-listed filters/sorts.
+`GET /api/v1/admin/provider-connections` uses the common page shape and allow-listed filters/sorts.
 `GET /api/v1/provider-connections/{id}/capabilities` returns the latest successful canonical
 capability document or normalized not-found/not-yet-validated errors.
 
@@ -129,7 +130,7 @@ references return normalized 404/409 without revealing which component exists.
 
 ## 4. Validation command and operation
 
-`POST /api/v1/provider-connections/{id}/validate` requires `Idempotency-Key`, accepts no secret
+`POST /api/v1/admin/provider-connections/{id}/validate` requires `Idempotency-Key`, accepts no secret
 body, and returns HTTP 202 with the operation resource, status URL, and `X-Correlation-ID`.
 
 In one CPS SQLAlchemy unit of work, the endpoint creates or reuses the operation, appends the
@@ -243,8 +244,9 @@ result shapes are rejected under the Sprint 1B retry/DLQ matrix.
 
 ## 8. Query and error conventions
 
-`GET /api/v1/operations`, `GET /api/v1/operations/{id}`, and `GET
-/api/v1/operations/{id}/events` use stable paging/filtering/sorting. Operation list filters are
+`GET /api/v1/operations`, `GET /api/v1/admin/operations`, `GET /api/v1/operations/{id}`, `GET
+/api/v1/admin/operations/{id}`, and `GET /api/v1/operations/{id}/events` (and the admin equivalents)
+use stable paging/filtering/sorting. Operation list filters are
 `provider_connection_id`, exact `operation_type`, exact `state`, and created-at range. Sort is
 `created_at|updated_at`, with ID tie-breaker. Event ordering is immutable `sequence ASC`; events can
 be paged by offset/limit.
