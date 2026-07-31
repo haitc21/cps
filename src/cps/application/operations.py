@@ -16,6 +16,7 @@ from cps.application.audit import project_operation_audit
 from cps.contracts.errors import (
     CatalogPolicyViolationError,
     IdempotencyKeyReusedError,
+    InstanceStateConflictError,
     OperationNotFoundPublicError,
     ProviderConnectionNotFoundError,
 )
@@ -520,6 +521,24 @@ class OperationApplicationService:
             "instance", connection.id, instance_provider_resource_id
         ):
             raise ProviderConnectionNotFoundError
+        state_requirements = {
+            InstanceAction.RESIZE: {"ACTIVE", "SHUTOFF"},
+            InstanceAction.CONFIRM_RESIZE: {"VERIFY_RESIZE"},
+            InstanceAction.REVERT_RESIZE: {"VERIFY_RESIZE"},
+            InstanceAction.REBUILD: {"ACTIVE", "SHUTOFF"},
+        }
+        allowed_states = state_requirements.get(action)
+        if allowed_states is not None:
+            rows, _ = await self._inventory.list_resources(
+                "instance",
+                provider_connection_id=connection.id,
+                provider_resource_id=instance_provider_resource_id,
+                limit=1,
+                offset=0,
+            )
+            provider_status = str(rows[0].provider_status or "").upper() if rows else ""
+            if provider_status not in allowed_states:
+                raise InstanceStateConflictError
         if action is InstanceAction.RESIZE:
             if (
                 not resize_flavor_provider_resource_id

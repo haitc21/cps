@@ -84,6 +84,11 @@ class DomainConflictError(DomainError):
     default_public_message = "Conflict"
 
 
+class InstanceStateConflictError(DomainConflictError):
+    code = "INVALID_RESOURCE_STATE"
+    default_public_message = "Instance state does not allow this action"
+
+
 class ProviderNotFoundError(ResourceNotFoundError):
     code = "PROVIDER_NOT_FOUND"
     default_public_message = "Provider not found"
