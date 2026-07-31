@@ -4,7 +4,7 @@
 
 - CPS authenticates requests with a bearer JWT issued by the Keycloak instance in the local Docker Compose stack (`http://127.0.0.1:8080`).
 - The issuer is the `vnpost` realm and the client is `cmp`.
-- Authorization is derived from roles in `resource_access.cmp.roles`; CPS maps the CMP roles `admin` and `member` to its API policies. CPS does not call BMS and does not depend on BMS for identity or role lookup.
+- Authorization is derived from roles in `resource_access.cmp.roles`; CPS maps the CMP roles `admin` and `member` to its API policies. During migration, the normalizer should accept the deployed aliases `admin:admin` and `member:signature` as equivalent policy inputs, then expose only canonical `admin`/`member` in the request context. CPS does not call BMS and does not depend on BMS for identity or role lookup.
 - CPS and OPS use one OpenStack admin credential for OpenStack operations. End-user Keycloak credentials are never sent to OpenStack, and OPS remains an internal adapter rather than a second end-user authentication boundary.
 - Authentication and authorization are separate from business audit logging; this work must not introduce a BMS dependency.
 
