@@ -37,16 +37,38 @@ class Settings(BaseSettings):
     inventory_scheduler_enabled: bool = False
     inventory_scheduler_interval_seconds: float = 60.0
     inventory_scheduler_jitter_seconds: float = 10.0
+    keycloak_url: str = "http://127.0.0.1:8080"
+    keycloak_realm: str = "vnpost"
+    keycloak_client_id: str = "cmp"
+    keycloak_issuer_override: str | None = None
+    keycloak_audience: str | None = None
+    keycloak_jwks_cache_ttl_seconds: int = 300
+    keycloak_auth_enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_keycloak_defaults(self) -> Settings:
+        if self.keycloak_auth_enabled is None:
+            self.keycloak_auth_enabled = self.environment == "production"
+        return self
+
+    @property
+    def keycloak_issuer(self) -> str:
+        if self.keycloak_issuer_override:
+            return self.keycloak_issuer_override.rstrip("/")
+        return f"{self.keycloak_url.rstrip('/')}/realms/{self.keycloak_realm}"
 
     @model_validator(mode="after")
     def validate_required_urls(self) -> Settings:
         if self.environment == "development":
             if not self.database_url:
                 self.database_url = (
-                    "postgresql+psycopg://cps:cps_dev_password@127.0.0.1:5432/cmp_cps"
+                    "postgresql+psycopg://cps:"
+                    "cps_dev_password@127.0.0.1:5432/cmp_cps"  # pragma: allowlist secret
                 )
             if not self.rabbitmq_url:
-                self.rabbitmq_url = "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"
+                self.rabbitmq_url = (
+                    "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"  # pragma: allowlist secret
+                )
             return self
 
         if self.environment == "test":

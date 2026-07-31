@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 
 from cps.config import Settings
 from cps.contracts.errors import (
+    AuthenticationError,
+    AuthorizationError,
     CapabilityUnsupportedError,
     DomainConflictError,
     OperationTimeoutError,
@@ -24,6 +26,8 @@ from cps.main import create_app
         (CapabilityUnsupportedError("unsupported"), 422, "CAPABILITY_UNSUPPORTED"),
         (ProviderOperationError(cause="provider failed"), 502, "PROVIDER_ERROR"),
         (OperationTimeoutError("timed out"), 504, "OPERATION_TIMEOUT"),
+        (AuthenticationError(), 401, "AUTHENTICATION_FAILED"),
+        (AuthorizationError(), 403, "AUTHORIZATION_FAILED"),
     ),
 )
 def test_domain_errors_use_common_envelope(exc: Exception, status_code: int, code: str) -> None:

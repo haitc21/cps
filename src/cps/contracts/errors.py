@@ -179,3 +179,35 @@ class OperationTimeoutError(DomainError):
     category = ErrorCategory.TIMEOUT
     retryable = True
     default_public_message = "Operation timed out"
+
+
+class AuthenticationError(DomainError):
+    status_code = 401
+    code = "AUTHENTICATION_FAILED"
+    category = ErrorCategory.AUTHENTICATION
+    retryable = False
+    default_public_message = "Authentication required"
+
+    def to_common_error(self) -> CommonError:
+        return CommonError(
+            code=self.code,
+            message=self.public_message,
+            category=self.category,
+            retryable=self.retryable,
+        )
+
+
+class AuthorizationError(DomainError):
+    status_code = 403
+    code = "AUTHORIZATION_FAILED"
+    category = ErrorCategory.AUTHORIZATION
+    retryable = False
+    default_public_message = "Access denied"
+
+    def to_common_error(self) -> CommonError:
+        return CommonError(
+            code=self.code,
+            message=self.public_message,
+            category=self.category,
+            retryable=self.retryable,
+        )

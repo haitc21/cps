@@ -21,10 +21,16 @@ from cps.infrastructure.health import HealthChecks
 from cps.observability.logging import configure_logging
 from cps.observability.metrics import metrics
 from cps.observability.middleware import CorrelationIdMiddleware
+from cps.security.auth.middleware import install_keycloak_auth_middleware
 from cps.security.credentials import AesGcmCredentialCipher, MappingCredentialKeyProvider
 
 
-def _create_base_app(resolved: Settings, *, title: str) -> tuple[FastAPI, object]:
+def _create_base_app(
+    resolved: Settings,
+    *,
+    title: str,
+    enable_keycloak_auth: bool = False,
+) -> tuple[FastAPI, object]:
     configure_logging(level=resolved.log_level, service_name=resolved.service_name)
 
     engine = create_database_engine(resolved.require_database_url)
@@ -46,16 +52,18 @@ def _create_base_app(resolved: Settings, *, title: str) -> tuple[FastAPI, object
     app.state.credential_cipher = credential_cipher
     app.state.health_checks = HealthChecks(resolved)
     app.state.metrics = metrics
-    app.add_middleware(CorrelationIdMiddleware)
     register_error_handlers(app)
     app.include_router(health_router)
+    if enable_keycloak_auth:
+        install_keycloak_auth_middleware(app, resolved)
+    app.add_middleware(CorrelationIdMiddleware)
     return app, engine
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create the public CPS application; internal routes use a separate listener."""
     resolved = settings or get_settings()
-    app, _engine = _create_base_app(resolved, title="CPS")
+    app, _engine = _create_base_app(resolved, title="CPS", enable_keycloak_auth=True)
     app.include_router(providers_router)
     app.include_router(connections_router)
     app.include_router(catalog_router)
