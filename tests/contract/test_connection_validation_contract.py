@@ -41,6 +41,14 @@ def test_capability_document_accepts_additive_minor_fields() -> None:
             "service.network": {"supported": True},
             "service.image": {"supported": True},
             "service.block_storage": {"supported": True},
+            "image.import": {"supported": True},
+            "image.member": {"supported": True},
+            "image.deactivate": {"supported": True},
+            "image.reactivate": {"supported": True},
+            "flavor.create": {"supported": True},
+            "flavor.delete": {"supported": True},
+            "flavor.access": {"supported": True},
+            "flavor.extra_specs": {"supported": True},
         },
         "future_field": "ignored by older consumers",
     }
@@ -54,6 +62,26 @@ def test_capability_document_rejects_unknown_major(version: str) -> None:
         CapabilityDocument.model_validate({"schema_version": version})
 
 
+def test_capability_document_rejects_credential_and_signed_url_extra_keys() -> None:
+    value = {
+        "schema_version": "1.0",
+        "services": {},
+        "features": {},
+        "credential_ref": "unsafe",
+    }
+    with pytest.raises(ValidationError):
+        CapabilityDocument.model_validate(value)
+
+    signed = {
+        "schema_version": "1.0",
+        "services": {},
+        "features": {},
+        "signed_url_meta": "https://example.com",
+    }
+    with pytest.raises(ValidationError):
+        CapabilityDocument.model_validate(signed)
+
+
 def test_capability_document_rejects_secret_and_oversized_payload() -> None:
     value = {
         "schema_version": "1.0",
@@ -63,6 +91,15 @@ def test_capability_document_rejects_secret_and_oversized_payload() -> None:
     }
     with pytest.raises(ValidationError):
         CapabilityDocument.model_validate(value)
+
+    camel_secret = {
+        "schema_version": "1.0",
+        "services": {},
+        "features": {},
+        "rawResponse": {"body": "unsafe"},
+    }
+    with pytest.raises(ValidationError):
+        CapabilityDocument.model_validate(camel_secret)
 
     oversized = {"schema_version": "1.0", "services": {}, "features": {}, "x": "a" * 65536}
     with pytest.raises(ValidationError):

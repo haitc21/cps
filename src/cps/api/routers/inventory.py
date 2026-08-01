@@ -36,6 +36,8 @@ async def list_inventory(
     order: str = Query(default="asc", pattern="^(asc|desc)$"),  # noqa: B008
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> BaseResponse[PagedData[InventoryResourceView]]:
+    if resource_type in {"image", "flavor", "images", "flavors"}:
+        raise ResourceNotFoundError
     try:
         rows, total = await uow.inventory.list_resources(
             resource_type,
@@ -67,6 +69,8 @@ async def get_inventory(
     resource_id: uuid.UUID,
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> BaseResponse[InventoryResourceView]:
+    if resource_type in {"image", "flavor", "images", "flavors"}:
+        raise ResourceNotFoundError
     try:
         row = await uow.inventory.get_resource(resource_type, resource_id)
     except InventoryPersistenceError as exc:

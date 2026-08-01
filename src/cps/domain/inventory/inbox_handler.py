@@ -44,7 +44,10 @@ class InventoryInboxHandler:
 
     async def _handle_batch(self, envelope: MessageEnvelope) -> None:
         try:
-            batch = InventoryBatchPayload.model_validate(envelope.payload)
+            batch = InventoryBatchPayload.model_validate(
+                envelope.payload,
+                context={"schema_version": envelope.schema_version},
+            )
         except ValidationError as exc:
             raise InventoryEventError("inventory batch payload is invalid") from exc
         sync = await self._repository.get_sync(batch.sync_id)

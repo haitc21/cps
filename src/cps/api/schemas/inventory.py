@@ -6,7 +6,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from cps.api.schemas.catalog import catalog_approved_from_attributes
 
 
 class InventoryResourceView(BaseModel):
@@ -85,6 +87,46 @@ class InventoryResourceView(BaseModel):
     version: int
     created_at: datetime
     updated_at: datetime
+
+
+class AdminCatalogCuratedView(InventoryResourceView):
+    """CPS-1703 admin catalog projection without serializing raw provider_attributes."""
+
+    catalog_approved: bool = False
+    provider_attributes: dict[str, Any] = Field(default_factory=dict, exclude=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_catalog_approved(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        attributes = value.get("provider_attributes")
+        if isinstance(attributes, dict):
+            data = dict(value)
+            data["catalog_approved"] = catalog_approved_from_attributes(attributes)
+            return data
+        return value
+
+
+def project_admin_catalog_curated_view(row: object) -> AdminCatalogCuratedView:
+    """Project CPS-1703 admin catalog rows without raw provider_attributes."""
+    if isinstance(row, dict):
+        attributes = row.get("provider_attributes")
+        curated = dict(row)
+        if isinstance(attributes, dict):
+            curated["catalog_approved"] = catalog_approved_from_attributes(attributes)
+        return AdminCatalogCuratedView.model_validate(curated)
+    attributes = getattr(row, "provider_attributes", None)
+    curated_payload: dict[str, Any] = {}
+    for name in AdminCatalogCuratedView.model_fields:
+        if name in {"catalog_approved", "provider_attributes"}:
+            continue
+        if hasattr(row, name):
+            curated_payload[name] = getattr(row, name)
+    if isinstance(attributes, dict):
+        curated_payload["catalog_approved"] = catalog_approved_from_attributes(attributes)
+        curated_payload["provider_attributes"] = attributes
+    return AdminCatalogCuratedView.model_validate(curated_payload)
 
 
 class InventoryPage(BaseModel):

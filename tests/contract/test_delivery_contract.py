@@ -55,6 +55,11 @@ EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
         "fixtures/resource_operations/request.json",
         "fixtures/resource_operations/result.json",
         "jsonschema/resource_operation.schema.json",
+        "jsonschema/inventory_batch.schema.json",
+        "fixtures/events/inventory_batch_image_full.json",
+        "fixtures/events/inventory_batch_image_minimal.json",
+        "fixtures/events/inventory_batch_flavor_full.json",
+        "fixtures/events/inventory_batch_flavor_minimal.json",
     }
 )
 
@@ -428,9 +433,33 @@ def test_manifest_only_adds_delivery_contract_paths() -> None:
     } == set(UNCHANGED_MANIFEST_ENTRIES)
 
 
-def test_semantic_validation_includes_transport_fixture() -> None:
+def test_semantic_validation_validates_all_inventory_batch_payloads_against_json_schema() -> None:
     from cps.contracts.semantic import validate_contract_semantics
 
     fixture_count, error = validate_contract_semantics(ROOT)
-    assert error is None
-    assert fixture_count == 9
+    assert error is None, error
+    assert fixture_count == 13
+
+
+def test_semantic_validation_validates_catalog_inventory_items_against_json_schema() -> None:
+    from cps.contracts.semantic import validate_contract_semantics
+
+    fixture_count, error = validate_contract_semantics(ROOT)
+    assert error is None, error
+    assert fixture_count == 13
+
+
+def test_semantic_validation_rejects_inventory_fixture_payload_schema_drift(tmp_path) -> None:
+    import shutil
+
+    from cps.contracts.semantic import validate_contract_semantics
+
+    shutil.copytree(ROOT, tmp_path / "contracts")
+    base = tmp_path / "contracts"
+    schema_path = base / "jsonschema/inventory_batch.schema.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    schema["$defs"]["AllowedDiskFormat"]["enum"] = ["raw"]
+    schema_path.write_text(json.dumps(schema, indent=2) + "\n", encoding="utf-8")
+    _, error = validate_contract_semantics(base)
+    assert error is not None
+    assert "inventory batch JSON Schema" in error

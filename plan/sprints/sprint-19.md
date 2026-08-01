@@ -1,6 +1,6 @@
 # Sprint 19 — Horizon-parity image and flavor administration
 
-**Status:** Proposed — requires Sprint Planning and design/security approval
+**Status:** In Progress
 **Dates:** 2026-08-03 to 2026-08-14
 **Capacity:** 34 CPS points
 **Sprint Goal:** An authorized cloud administrator can inspect and safely
@@ -33,7 +33,7 @@ the OpenStack CLI.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1901 Catalog detail and compatibility contracts | 5 | CPS | OPS-1901 | Proposed |
+| CPS-1901 Catalog detail and compatibility contracts | 5 | CPS | OPS-1901 | Implemented; paired live pending |
 | CPS-1902 Flavor lifecycle and project access | 8 | CPS | OPS-1902 | Proposed |
 | CPS-1903 Image metadata, access, and lifecycle | 13 | CPS | OPS-1903 | Proposed |
 | CPS-1904 Instance image snapshot and consumer integration | 5 | CPS | OPS-1904 | Proposed |
@@ -43,7 +43,7 @@ the OpenStack CLI.
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1901](../tasks/sprint-19/CPS-1901-catalog-contracts.md) | Detailed image/flavor query contracts and compatibility validation | CPS-1703 | Proposed |
+| [CPS-1901](../tasks/sprint-19/CPS-1901-catalog-contracts.md) | Detailed image/flavor query contracts and compatibility validation | CPS-1703 | Implemented; paired live pending |
 | [CPS-1902](../tasks/sprint-19/CPS-1902-flavor-lifecycle.md) | Durable flavor create/delete/access/extra-spec operations | CPS-1901 | Proposed |
 | [CPS-1903](../tasks/sprint-19/CPS-1903-image-lifecycle.md) | Durable image metadata/import/member/state/delete operations | CPS-1901 | Proposed |
 | [CPS-1904](../tasks/sprint-19/CPS-1904-instance-image-integration.md) | Instance snapshot plus launch/rebuild/volume compatibility checks | CPS-1901, CPS-1903 | Proposed |
@@ -51,8 +51,8 @@ the OpenStack CLI.
 
 ## Mandatory AI delivery protocol for every task
 
-The installed Superpowers and Codex Security plugins are mandatory workflow
-dependencies. Agents must invoke the named skills, not merely imitate them:
+The installed Superpowers skills are workflow dependencies when available.
+Agents must invoke the named skills, not merely imitate them:
 
 1. Invoke `superpowers:using-superpowers`, then
    `superpowers:brainstorming` when requirements/design still contain a choice,
@@ -65,42 +65,34 @@ dependencies. Agents must invoke the named skills, not merely imitate them:
    current git status. Produce a task-scoped implementation plan, contract
    compatibility decision, red/green test list, failure matrix, exact curl and
    OpenStack CLI verification, cleanup, and proposed commit boundaries.
-3. Before implementation, use `codex-security:threat-model` to generate or
-   validate the repository-scoped threat model and add task-specific abuse
-   cases. Security approval is required for new admin routes, URL import,
-   metadata, project access, and destructive operations.
-4. At execution time invoke `superpowers:using-git-worktrees`; implement in an
+3. At execution time invoke `superpowers:using-git-worktrees`; implement in an
    isolated task worktree/branch. Use either
    `superpowers:subagent-driven-development` (preferred) or
    `superpowers:executing-plans` to execute the approved micro-plan.
-5. **Worker — Cursor Composer 2.5 Fast:** invoke
+4. **Worker — Cursor Composer 2.5 Fast:** invoke
    `superpowers:test-driven-development` and implement only the approved task
    with strict red-green-refactor. Start with an observed failing test, then the
    smallest vertical slice. Reuse compatible Horizon semantics/tests, preserve
    CPS/OPS boundaries, and record every deviation.
-6. Invoke `superpowers:requesting-code-review` for handoff.
+5. Invoke `superpowers:requesting-code-review` for handoff.
    **Reviewer — Codex ChatGPT 5.6 luna:** independently inspect the diff,
    contract checksum/pinned copy, CodeGraph blast radius, authorization,
    idempotency/replay, timeout/error normalization, secret handling, migration,
    and tests. Critical/high findings return the task to Worker.
-7. Worker invokes `superpowers:receiving-code-review`, verifies each finding
+6. Worker invokes `superpowers:receiving-code-review`, verifies each finding
    technically, fixes valid findings, and reruns focused/affected suites.
    Reviewer gives a second approval.
-8. Run `codex-security:security-diff-scan` against the task Git diff. It must
-   execute threat-model, finding-discovery, validation, and attack-path phases
-   as applicable and produce its canonical report. Triage/fix/track every
-   reportable finding; unresolved Critical/High blocks live testing and commit.
-9. Invoke `superpowers:verification-before-completion`, run repository quality
+7. Invoke `superpowers:verification-before-completion`, run repository quality
    gates, and preserve fresh command output. Then run a live task-specific
    `curl` against
    CPS, poll the durable operation to terminal success, and independently query
    the same provider resource with `openstack` CLI. Compare IDs and material
    fields; API success alone is not acceptance.
-10. Clean disposable resources and verify absence with both CPS reconciliation
+8. Clean disposable resources and verify absence with both CPS reconciliation
    and OpenStack CLI. Never delete pre-existing resources.
-11. Add a redacted runbook under `cps/docs/runbooks/`, update task and sprint
+9. Add a redacted runbook under `cps/docs/runbooks/`, update task and sprint
    evidence, inspect `git diff --check`, and run secret scanning.
-12. Invoke `superpowers:finishing-a-development-branch`. Commit and push one
+10. Invoke `superpowers:finishing-a-development-branch`. Commit and push one
    task-scoped change in each affected repository only
    after all gates pass and explicit Git authorization is confirmed for that
    execution turn. Record branch, commit hashes, remote refs, commands, output

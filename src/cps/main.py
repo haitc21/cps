@@ -10,7 +10,8 @@ from fastapi import FastAPI
 from cps.api.errors import register_error_handlers
 from cps.api.health import router as health_router
 from cps.api.prefixes import ADMIN_API_PREFIX, MEMBER_API_PREFIX
-from cps.api.routers.catalog import router as catalog_router
+from cps.api.routers.catalog import admin_router as catalog_admin_router
+from cps.api.routers.catalog import member_router as catalog_member_router
 from cps.api.routers.connections import admin_router as connections_admin_router
 from cps.api.routers.connections import member_router as connections_member_router
 from cps.api.routers.inventory import router as inventory_router
@@ -70,7 +71,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(providers_router, prefix=ADMIN_API_PREFIX)
     app.include_router(connections_admin_router, prefix=ADMIN_API_PREFIX)
     app.include_router(connections_member_router, prefix=MEMBER_API_PREFIX)
-    app.include_router(catalog_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(catalog_admin_router, prefix=ADMIN_API_PREFIX)
+    app.include_router(catalog_member_router, prefix=MEMBER_API_PREFIX)
     app.include_router(operations_admin_router, prefix=ADMIN_API_PREFIX)
     app.include_router(operations_member_router, prefix=MEMBER_API_PREFIX)
     app.include_router(inventory_router, prefix=MEMBER_API_PREFIX)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase
@@ -216,3 +218,29 @@ def test_inventory_sync_and_batch_constraints_are_named() -> None:
         constraint.name for constraint in InventoryBatch.__table__.constraints
     }
     assert "operation_id" in InventorySync.__table__.columns
+
+
+EXPECTED_CATALOG_INDEX_NAMES = frozenset(
+    {
+        "ix_images_catalog_approved_name",
+        "ix_images_catalog_filters",
+        "ix_images_catalog_owner",
+        "ix_images_catalog_status",
+        "ix_flavors_catalog_status",
+        "ix_images_catalog_dims",
+        "ix_images_catalog_member_projects",
+        "ix_flavors_catalog_approved_name",
+        "ix_flavors_catalog_filters",
+        "ix_flavors_catalog_access_projects",
+    }
+)
+
+
+def test_catalog_query_indexes_are_declared_in_migration() -> None:
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "alembic/versions/20260801_0017_catalog_query_indexes.py"
+    )
+    text = migration.read_text(encoding="utf-8")
+    for index_name in EXPECTED_CATALOG_INDEX_NAMES:
+        assert index_name in text

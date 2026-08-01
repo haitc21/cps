@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -12,6 +13,10 @@ import pytest
 from cps.contracts.messages.envelope import MessageEnvelope
 from cps.contracts.messages.types import OPERATION_COMPLETED
 from cps.domain.messaging.inbox import InboxInsertResult, InboxInsertStatus
+from cps.infrastructure.db.repositories.inventory import (
+    InventoryPersistenceError,
+    InventoryRepository,
+)
 from cps.infrastructure.messaging.inbox_consumer import (
     DeliveryProcessingRecord,
     EventInboxConsumer,
@@ -172,6 +177,80 @@ async def test_process_inbox_skips_snapshot_create_without_identity(monkeypatch)
     await consumer._process_inbox(envelope, DeliveryProcessingRecord())
 
     assert inventory.snapshot_calls == []
+
+
+async def test_process_inbox_rejects_volume_attachment_non_object_resource_before_merge(
+    monkeypatch,
+) -> None:
+    connection_id = uuid.uuid4()
+    instance_row = SimpleNamespace(id=uuid.uuid4(), provider_resource_id="inst-1")
+    volume_row = SimpleNamespace(id=uuid.uuid4(), provider_resource_id="vol-1")
+    session = AsyncMock()
+    session.scalar = AsyncMock(side_effect=[instance_row, volume_row])
+    inventory = InventoryRepository(session)
+
+    class _UowWithInventory:
+        def __init__(self) -> None:
+            self.inventory = inventory
+            self.inbox = _FakeInbox()
+            self.operations = object()
+            self.bindings = None
+            self.committed = False
+
+        async def __aenter__(self) -> _UowWithInventory:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def commit(self) -> None:
+            self.committed = True
+
+    uow = _UowWithInventory()
+    consumer = EventInboxConsumer(
+        lifecycle=WorkerLifecycle(),
+        publisher=ConfirmedPublisher(),
+        retry_exchange=AsyncMock(),
+        session_factory=object(),
+    )
+    monkeypatch.setattr(
+        "cps.infrastructure.messaging.inbox_consumer.SqlAlchemyUnitOfWork",
+        lambda _factory: uow,
+    )
+    monkeypatch.setattr(
+        "cps.infrastructure.messaging.inbox_consumer.OperationInboxHandler.handle",
+        AsyncMock(),
+    )
+    envelope = MessageEnvelope.model_validate(
+        {
+            "message_id": uuid.uuid4(),
+            "message_type": OPERATION_COMPLETED,
+            "schema_version": "1.0",
+            "occurred_at": datetime.now(UTC),
+            "correlation_id": uuid.uuid4(),
+            "operation_id": uuid.uuid4(),
+            "provider_id": uuid.uuid4(),
+            "provider_connection_id": connection_id,
+            "payload": {
+                "result": {
+                    "resource_type": "volume-attachment",
+                    "operation": "attach",
+                    "state": "SUCCEEDED",
+                    "parameters": {
+                        "server_id": "inst-1",
+                        "volume_id": "vol-1",
+                    },
+                    "resource": "invalid-string",
+                }
+            },
+        }
+    )
+
+    with pytest.raises(InventoryPersistenceError, match="canonical validation"):
+        await consumer._process_inbox(envelope, DeliveryProcessingRecord())
+
+    assert uow.committed is False
+    session.merge.assert_not_awaited()
 
 
 async def test_process_inbox_does_not_project_snapshot_update(monkeypatch) -> None:

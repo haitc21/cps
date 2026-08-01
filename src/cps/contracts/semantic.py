@@ -28,6 +28,20 @@ _ERROR_SCHEMA = "jsonschema/common_error.schema.json"
 _DELIVERY_SCHEMA = "jsonschema/delivery_metadata.schema.json"
 _RESOURCE_OPERATION_PREFIX = "fixtures/resource_operations/"
 _RESOURCE_OPERATION_SCHEMA = "jsonschema/resource_operation.schema.json"
+_INVENTORY_BATCH_SCHEMA = "jsonschema/inventory_batch.schema.json"
+_CAPABILITY_SCHEMA = "jsonschema/capability_document.schema.json"
+_CATALOG_CAPABILITY_KEYS = frozenset(
+    {
+        "image.import",
+        "image.member",
+        "image.deactivate",
+        "image.reactivate",
+        "flavor.create",
+        "flavor.delete",
+        "flavor.access",
+        "flavor.extra_specs",
+    }
+)
 
 
 def _load_json_object(path: Path, *, label: str) -> tuple[object | None, str | None]:
@@ -85,7 +99,11 @@ def _validate_envelope_fixture(
             return f"fixture failed validation event semantics: {label}"
     if message_type == "cloud.inventory.batch":
         try:
-            InventoryBatchPayload.model_validate(raw.get("payload", {}))
+            schema_version = str(raw.get("schema_version", "1.1"))
+            InventoryBatchPayload.model_validate(
+                raw.get("payload", {}),
+                context={"schema_version": schema_version},
+            )
         except (TypeError, ValueError):
             return f"fixture failed inventory batch semantics: {label}"
     return None
@@ -124,6 +142,75 @@ def _validate_delivery_fixture(
         validator.validate(raw)
     except ValidationError:
         return f"fixture failed JSON Schema validation: {label}"
+    return None
+
+
+def _inventory_payload_validator(base: Path) -> Draft202012Validator | str:
+    return _schema_validator(base / _INVENTORY_BATCH_SCHEMA, label=_INVENTORY_BATCH_SCHEMA)
+
+
+def _validate_inventory_batch_fixture_payload(
+    *,
+    label: str,
+    raw: dict[str, object],
+    payload_validator: Draft202012Validator,
+) -> str | None:
+    if raw.get("message_type") != "cloud.inventory.batch":
+        return None
+    payload = raw.get("payload")
+    if not isinstance(payload, dict):
+        return f"fixture payload must be an object: {label}"
+    try:
+        payload_validator.validate(payload)
+    except ValidationError:
+        return f"fixture payload failed inventory batch JSON Schema: {label}"
+    try:
+        schema_version = str(raw.get("schema_version", "1.1"))
+        InventoryBatchPayload.model_validate(
+            payload,
+            context={"schema_version": schema_version},
+        )
+    except (TypeError, ValueError):
+        return f"fixture payload failed inventory batch semantics: {label}"
+    return None
+
+
+def _capability_validator(base: Path) -> Draft202012Validator | str:
+    return _schema_validator(base / _CAPABILITY_SCHEMA, label=_CAPABILITY_SCHEMA)
+
+
+def _validate_canonical_capability_document(
+    validator: Draft202012Validator,
+) -> str | None:
+    document: dict[str, object] = {
+        "schema_version": "1.1",
+        "services": {
+            "identity": {"available": True},
+            "compute": {"available": True},
+            "network": {"available": True},
+            "image": {"available": True},
+            "block_storage": {"available": True},
+        },
+        "features": {
+            "connection.authenticate": {"supported": True},
+            "service.identity": {"supported": True},
+            "service.compute": {"supported": True},
+            "service.network": {"supported": True},
+            "service.image": {"supported": True},
+            "service.block_storage": {"supported": True},
+        },
+    }
+    features = document["features"]
+    assert isinstance(features, dict)
+    for key in _CATALOG_CAPABILITY_KEYS:
+        features[key] = {"supported": True}
+    try:
+        from cps.contracts.validation import CapabilityDocument
+
+        CapabilityDocument.model_validate(document)
+        validator.validate(document)
+    except (PydanticValidationError, ValidationError):
+        return "canonical capability document failed schema/runtime validation"
     return None
 
 
@@ -243,5 +330,27 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
 
         if semantic_error is not None:
             return len(fixture_paths), semantic_error
+
+    if (base / _INVENTORY_BATCH_SCHEMA).is_file():
+        loaded = _inventory_payload_validator(base)
+        if isinstance(loaded, str):
+            return len(fixture_paths), loaded
+        payload_validator = loaded
+        for label, raw in parsed_fixtures:
+            payload_error = _validate_inventory_batch_fixture_payload(
+                label=label,
+                raw=raw,
+                payload_validator=payload_validator,
+            )
+            if payload_error is not None:
+                return len(fixture_paths), payload_error
+
+    if (base / _CAPABILITY_SCHEMA).is_file():
+        loaded = _capability_validator(base)
+        if isinstance(loaded, str):
+            return len(fixture_paths), loaded
+        capability_error = _validate_canonical_capability_document(loaded)
+        if capability_error is not None:
+            return len(fixture_paths), capability_error
 
     return len(fixture_paths), None

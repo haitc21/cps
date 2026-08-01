@@ -444,9 +444,7 @@ class EventInboxConsumer:
                                 operation=result["operation"],
                                 instance_provider_resource_id=parameters.get("server_id", ""),
                                 volume_provider_resource_id=parameters.get("volume_id", ""),
-                                resource=result.get("resource")
-                                if isinstance(result.get("resource"), dict)
-                                else None,
+                                resource=result.get("resource"),
                             )
                     if (
                         result.get("operation") == "delete"

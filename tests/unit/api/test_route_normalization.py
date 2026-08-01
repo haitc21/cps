@@ -15,6 +15,7 @@ _ADMIN_PATHS = frozenset(
         f"{ADMIN_API_PREFIX}/provider-connections",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/catalog",
+        f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/catalog/{{resource_type}}/{{resource_id}}",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/validate",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/inventory-syncs",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/inventory-refreshes",
@@ -30,7 +31,9 @@ _ADMIN_PATHS = frozenset(
 
 _MEMBER_PATHS = frozenset(
     {
-        f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/capabilities",
+        f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/catalog",
+        f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/catalog/{{resource_type}}/{{resource_id}}",
+        f"{MEMBER_API_PREFIX}/catalog/compatibility",
         f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/network-operations",
         f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/volumes",
         f"{MEMBER_API_PREFIX}/provider-connections/{{connection_id}}/volume-snapshots",

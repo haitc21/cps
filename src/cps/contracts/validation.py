@@ -2,27 +2,35 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cps.contracts.errors import CommonError
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.safe_metadata import (
+    MAX_CAPABILITY_REASON_STRING_LENGTH,
+    MAX_CAPABILITY_SCHEMA_VERSION_LENGTH,
+    MAX_CAPABILITY_VERSION_STRING_LENGTH,
+    MAX_ROOT_MAP_ENTRIES,
+    is_secret_value,
+    validate_capability_extra_tree,
+    validate_serialized_size,
+)
 
-MAX_VALIDATION_DOCUMENT_BYTES = 64 * 1024
-_FORBIDDEN_KEYS = frozenset(
+_REQUIRED_SERVICES = frozenset({"identity", "compute", "network", "image", "block_storage"})
+_CATALOG_CAPABILITY_KEYS = frozenset(
     {
-        "password",
-        "token",
-        "authorization",
-        "user_data",
-        "private_key",
-        "raw_catalog",
-        "raw_response",
+        "image.import",
+        "image.member",
+        "image.deactivate",
+        "image.reactivate",
+        "flavor.create",
+        "flavor.delete",
+        "flavor.access",
+        "flavor.extra_specs",
     }
 )
-_REQUIRED_SERVICES = frozenset({"identity", "compute", "network", "image", "block_storage"})
 _REQUIRED_FEATURES = frozenset(
     {
         "connection.authenticate",
@@ -35,23 +43,9 @@ _REQUIRED_FEATURES = frozenset(
 )
 
 
-def _assert_safe_tree(value: object) -> None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            if str(key).lower() in _FORBIDDEN_KEYS or any(
-                token in str(key).lower()
-                for token in ("password", "token", "authorization", "private_key")
-            ):
-                raise ValueError(f"forbidden validation field: {key}")
-            _assert_safe_tree(child)
-    elif isinstance(value, list):
-        for child in value:
-            _assert_safe_tree(child)
-
-
 class _VersionedContract(BaseModel):
     model_config = ConfigDict(extra="allow")
-    schema_version: str
+    schema_version: str = Field(max_length=MAX_CAPABILITY_SCHEMA_VERSION_LENGTH)
     supported_major: ClassVar[int] = 1
     allow_sensitive_fields: ClassVar[bool] = False
 
@@ -63,12 +57,9 @@ class _VersionedContract(BaseModel):
         if int(parts[0]) != self.supported_major:
             raise ValueError("unsupported major schema version")
         if not self.allow_sensitive_fields:
-            _assert_safe_tree(self.model_dump(mode="json"))
-        if (
-            len(json.dumps(self.model_dump(mode="json"), separators=(",", ":")).encode())
-            > MAX_VALIDATION_DOCUMENT_BYTES
-        ):
-            raise ValueError("validation document exceeds maximum size")
+            payload = self.model_dump(mode="json")
+            validate_capability_extra_tree(payload)
+            validate_serialized_size(payload, label="validation document")
         return self
 
 
@@ -79,11 +70,54 @@ class ServiceCapability(BaseModel):
     max_version: str | None = None
     reason: str | None = Field(default=None, max_length=256)
 
+    @field_validator("available", mode="before")
+    @classmethod
+    def validate_available_scalar(cls, value: object) -> object:
+        if type(value) is not bool:
+            raise ValueError("available must be boolean")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bounded_strings(self) -> ServiceCapability:
+        for label, value, max_length in (
+            ("min_version", self.min_version, MAX_CAPABILITY_VERSION_STRING_LENGTH),
+            ("max_version", self.max_version, MAX_CAPABILITY_VERSION_STRING_LENGTH),
+            ("reason", self.reason, MAX_CAPABILITY_REASON_STRING_LENGTH),
+        ):
+            if value is None:
+                continue
+            if type(value) is not str:
+                raise ValueError(f"{label} must be a string")
+            if len(value) > max_length:
+                raise ValueError(f"{label} exceeds maximum length")
+            if is_secret_value(value):
+                raise ValueError(f"forbidden secret-bearing {label}")
+        return self
+
 
 class FeatureCapability(BaseModel):
     model_config = ConfigDict(extra="allow")
     supported: bool
     reason: str | None = Field(default=None, max_length=256)
+
+    @field_validator("supported", mode="before")
+    @classmethod
+    def validate_supported_scalar(cls, value: object) -> object:
+        if type(value) is not bool:
+            raise ValueError("supported must be boolean")
+        return value
+
+    @model_validator(mode="after")
+    def validate_bounded_strings(self) -> FeatureCapability:
+        if self.reason is None:
+            return self
+        if type(self.reason) is not str:
+            raise ValueError("reason must be a string")
+        if len(self.reason) > MAX_CAPABILITY_REASON_STRING_LENGTH:
+            raise ValueError("reason exceeds maximum length")
+        if is_secret_value(self.reason):
+            raise ValueError("forbidden secret-bearing reason")
+        return self
 
 
 class CapabilityDocument(_VersionedContract):
@@ -93,11 +127,32 @@ class CapabilityDocument(_VersionedContract):
     features: dict[str, FeatureCapability]
 
     @model_validator(mode="after")
+    def validate_version_and_size(self) -> CapabilityDocument:
+        if len(self.schema_version) > MAX_CAPABILITY_SCHEMA_VERSION_LENGTH:
+            raise ValueError("schema_version exceeds maximum length")
+        parts = self.schema_version.split(".")
+        if len(parts) != 2 or not all(part.isdigit() for part in parts):
+            raise ValueError("invalid schema version")
+        if int(parts[0]) != self.supported_major:
+            raise ValueError("unsupported major schema version")
+        if len(self.services) > MAX_ROOT_MAP_ENTRIES:
+            raise ValueError("services exceed maximum entries")
+        if len(self.features) > MAX_ROOT_MAP_ENTRIES:
+            raise ValueError("features exceed maximum entries")
+        payload = self.model_dump(mode="json")
+        validate_capability_extra_tree(payload)
+        validate_serialized_size(payload, label="validation document")
+        return self
+
+    @model_validator(mode="after")
     def validate_required_capabilities(self) -> CapabilityDocument:
         if not _REQUIRED_SERVICES.issubset(self.services):
             raise ValueError("capability document is missing required services")
         if not _REQUIRED_FEATURES.issubset(self.features):
             raise ValueError("capability document is missing required features")
+        _major, minor = self.schema_version.split(".")
+        if int(minor) >= 1 and not _CATALOG_CAPABILITY_KEYS.issubset(self.features):
+            raise ValueError("capability document is missing catalog administration features")
         return self
 
 

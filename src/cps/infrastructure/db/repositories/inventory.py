@@ -4,15 +4,25 @@ from __future__ import annotations
 
 import copy
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy import delete, func, select, update
+from pydantic import ValidationError
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from cps.contracts.messages.inventory import InventoryBatchPayload, InventoryCollectionStatus
+from cps.contracts.messages.inventory import (
+    OWNERSHIP_CONFLICT_MESSAGE,
+    InventoryBatchPayload,
+    InventoryCollectionStatus,
+    OwnershipConflictError,
+    canonicalize_inventory_item,
+    resolve_owner_project_provider_resource_id,
+)
+from cps.contracts.safe_metadata import validate_volume_attachment_resource
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.inventory import (
     AvailabilityZone,
@@ -82,6 +92,113 @@ class InventoryBatchConflictError(InventoryPersistenceError):
 
 class InventorySyncIncompleteError(InventoryPersistenceError):
     """A sync cannot finalize because collection integrity is incomplete."""
+
+
+_CATALOG_APPROVED_MARKER = {"catalog_approved": True}
+
+
+@dataclass(frozen=True)
+class CatalogResourceQuery:
+    name: str | None = None
+    status: str | None = None
+    approved: bool | None = True
+    include_deleted: bool = False
+    sort: str = "name"
+    order: str = "asc"
+    visibility: str | None = None
+    owner_project_id: str | None = None
+    disk_format: str | None = None
+    size_min_bytes: int | None = None
+    size_max_bytes: int | None = None
+    min_disk_gib: int | None = None
+    min_ram_mib: int | None = None
+    is_public: bool | None = None
+    min_root_disk_gib: int | None = None
+    project_access_id: str | None = None
+    member_project_scope: str | None = None
+    member_live_only: bool = False
+    member_public_catalog_only: bool = False
+
+
+def _escape_like_pattern(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_provider_timestamp(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return None
+    normalized = value.replace("Z", "+00:00")
+    return datetime.fromisoformat(normalized)
+
+
+def _project_ownership_conflict_update(model: Any, statement: Any) -> dict[str, Any]:
+    """Preserve project linkage when refresh omits owner; allow safe resolved transitions."""
+    excluded_project_id = statement.excluded.project_id
+    excluded_owner = statement.excluded.project_provider_resource_id
+    return {
+        "project_provider_resource_id": sa.case(
+            (excluded_owner.is_(None), model.project_provider_resource_id),
+            (excluded_project_id.isnot(None), excluded_owner),
+            (
+                excluded_owner == model.project_provider_resource_id,
+                model.project_provider_resource_id,
+            ),
+            else_=excluded_owner,
+        ),
+        "project_id": sa.case(
+            (excluded_owner.is_(None), model.project_id),
+            (excluded_project_id.isnot(None), excluded_project_id),
+            (excluded_owner == model.project_provider_resource_id, model.project_id),
+            else_=sa.null(),
+        ),
+    }
+
+
+def _member_public_catalog_clause(model: Any, resource_type: str) -> Any:
+    if resource_type == "image":
+        return sa.and_(
+            model.lifecycle_state == "ACTIVE",
+            func.lower(model.provider_status) == "active",
+            model.visibility.in_(("public", "community")),
+        )
+    if resource_type == "flavor":
+        return sa.and_(
+            model.lifecycle_state == "ACTIVE",
+            or_(model.enabled.is_(True), model.enabled.is_(None)),
+            model.is_public.is_(True),
+        )
+    msg = "member catalog filtering requires image or flavor"
+    raise InventoryPersistenceError(msg)
+
+
+def _member_scope_clause(model: Any, resource_type: str, project_scope: str) -> Any:
+    if resource_type == "image":
+        shared = sa.and_(
+            model.visibility == "shared",
+            model.provider_attributes["member_project_ids"].contains([project_scope]),
+        )
+        private = sa.and_(
+            model.visibility == "private",
+            model.project_provider_resource_id == project_scope,
+        )
+        public = model.visibility.in_(("public", "community"))
+        return sa.and_(
+            model.lifecycle_state == "ACTIVE",
+            func.lower(model.provider_status) == "active",
+            or_(public, private, shared),
+        )
+    if resource_type == "flavor":
+        private = model.provider_attributes["access_project_ids"].contains([project_scope])
+        public = model.is_public.is_(True)
+        return sa.and_(
+            model.lifecycle_state == "ACTIVE",
+            or_(model.enabled.is_(True), model.enabled.is_(None)),
+            or_(public, private),
+        )
+    msg = "member scope filtering requires image or flavor"
+    raise InventoryPersistenceError(msg)
 
 
 class InventoryRepository:
@@ -203,7 +320,7 @@ class InventoryRepository:
                 model.provider_connection_id == provider_connection_id,
                 model.provider_resource_id == provider_resource_id,
                 model.lifecycle_state != "DELETED",
-                model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+                model.provider_attributes.contains(_CATALOG_APPROVED_MARKER),
             )
         )
         return result.scalar_one_or_none() is not None
@@ -215,25 +332,182 @@ class InventoryRepository:
         *,
         offset: int,
         limit: int,
+        name: str | None = None,
+        status: str | None = None,
+        approved: bool | None = True,
+        include_deleted: bool = False,
+        sort: str = "name",
+        order: str = "asc",
+        visibility: str | None = None,
+        owner_project_id: str | None = None,
+        disk_format: str | None = None,
+        size_min_bytes: int | None = None,
+        size_max_bytes: int | None = None,
+        min_disk_gib: int | None = None,
+        min_ram_mib: int | None = None,
+        is_public: bool | None = None,
+        min_root_disk_gib: int | None = None,
+        project_access_id: str | None = None,
+        member_project_scope: str | None = None,
+        member_live_only: bool = False,
+        member_public_catalog_only: bool = False,
     ) -> tuple[list[Any], int]:
+        query = CatalogResourceQuery(
+            name=name,
+            status=status,
+            approved=approved,
+            include_deleted=include_deleted,
+            sort=sort,
+            order=order,
+            visibility=visibility,
+            owner_project_id=owner_project_id,
+            disk_format=disk_format,
+            size_min_bytes=size_min_bytes,
+            size_max_bytes=size_max_bytes,
+            min_disk_gib=min_disk_gib,
+            min_ram_mib=min_ram_mib,
+            is_public=is_public,
+            min_root_disk_gib=min_root_disk_gib,
+            project_access_id=project_access_id,
+            member_project_scope=member_project_scope,
+            member_live_only=member_live_only,
+            member_public_catalog_only=member_public_catalog_only,
+        )
+        return await self._list_catalog_resources(
+            resource_type,
+            provider_connection_id,
+            query=query,
+            offset=offset,
+            limit=limit,
+        )
+
+    async def get_catalog_resource(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        resource_id: uuid.UUID,
+        *,
+        approved: bool | None = True,
+        include_deleted: bool = False,
+    ) -> Any | None:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        filters = [
+            model.id == resource_id,
+            model.provider_connection_id == provider_connection_id,
+        ]
+        if not include_deleted:
+            filters.append(model.lifecycle_state != "DELETED")
+        if approved is True:
+            filters.append(model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        elif approved is False:
+            filters.append(~model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        result = await self._session.execute(select(model).where(*filters))
+        return result.scalar_one_or_none()
+
+    async def get_catalog_resource_by_provider_id(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        provider_resource_id: str,
+        *,
+        approved: bool | None = None,
+        include_deleted: bool = False,
+    ) -> Any | None:
         resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
         model = RESOURCE_MODELS.get(resource_type)
         if model is None:
             raise InventoryPersistenceError("unsupported inventory resource type")
         filters = [
             model.provider_connection_id == provider_connection_id,
-            model.lifecycle_state != "DELETED",
-            model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+            model.provider_resource_id == provider_resource_id,
         ]
+        if not include_deleted:
+            filters.append(model.lifecycle_state != "DELETED")
+        if approved is True:
+            filters.append(model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        elif approved is False:
+            filters.append(~model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        result = await self._session.execute(select(model).where(*filters))
+        return result.scalar_one_or_none()
+
+    async def _list_catalog_resources(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        *,
+        query: CatalogResourceQuery,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[Any], int]:
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        filters = [model.provider_connection_id == provider_connection_id]
+        if not query.include_deleted:
+            filters.append(model.lifecycle_state != "DELETED")
+        if query.approved is True:
+            filters.append(model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        elif query.approved is False:
+            filters.append(~model.provider_attributes.contains(_CATALOG_APPROVED_MARKER))
+        if query.name is not None:
+            escaped = _escape_like_pattern(query.name)
+            filters.append(model.name.ilike(f"%{escaped}%", escape="\\"))
+        if query.status is not None:
+            filters.append(func.lower(model.provider_status) == query.status.lower())
+        if resource_type == "image":
+            if query.visibility is not None:
+                filters.append(model.visibility == query.visibility)
+            if query.owner_project_id is not None:
+                filters.append(model.project_provider_resource_id == query.owner_project_id)
+            if query.disk_format is not None:
+                filters.append(model.disk_format == query.disk_format)
+            if query.size_min_bytes is not None:
+                filters.append(model.size_bytes >= query.size_min_bytes)
+            if query.size_max_bytes is not None:
+                filters.append(model.size_bytes <= query.size_max_bytes)
+            if query.min_disk_gib is not None:
+                filters.append(model.min_disk_gib >= query.min_disk_gib)
+            if query.min_ram_mib is not None:
+                filters.append(model.min_ram_mib >= query.min_ram_mib)
+        if resource_type == "flavor":
+            if query.is_public is not None:
+                filters.append(model.is_public.is_(query.is_public))
+            if query.min_root_disk_gib is not None:
+                filters.append(model.root_disk_gib >= query.min_root_disk_gib)
+            if query.min_ram_mib is not None:
+                filters.append(model.ram_mib >= query.min_ram_mib)
+            if query.project_access_id is not None:
+                filters.append(
+                    model.provider_attributes["access_project_ids"].contains(
+                        [query.project_access_id]
+                    )
+                )
+        if query.member_public_catalog_only:
+            filters.append(_member_public_catalog_clause(model, resource_type))
+        elif query.member_live_only and query.member_project_scope is not None:
+            filters.append(
+                _member_scope_clause(model, resource_type, query.member_project_scope)
+            )
         total = int(
             (
                 await self._session.execute(select(func.count()).select_from(model).where(*filters))
             ).scalar_one()
         )
+        column = {
+            "name": model.name,
+            "created_at": model.created_at,
+            "updated_at": model.updated_at,
+        }.get(query.sort, model.name)
+        direction = column.asc() if query.order == "asc" else column.desc()
+        tie = model.id.asc() if query.order == "asc" else model.id.desc()
         result = await self._session.execute(
             select(model)
             .where(*filters)
-            .order_by(model.name.asc(), model.id.asc())
+            .order_by(direction, tie)
             .offset(offset)
             .limit(limit)
         )
@@ -281,6 +555,8 @@ class InventoryRepository:
                 "provider_status": instance.get("provider_status"),
                 "lifecycle_state": instance.get("lifecycle_state", "ACTIVE"),
                 "attributes": instance.get("attributes", {}),
+                "provider_created_at": instance.get("provider_created_at"),
+                "provider_updated_at": instance.get("provider_updated_at"),
             },
         )
         result = await self._session.execute(
@@ -371,6 +647,8 @@ class InventoryRepository:
                 "snapshot_size_gib": snapshot.get("snapshot_size_gib", snapshot.get("size")),
                 "metadata": metadata,
                 "attributes": attributes,
+                "provider_created_at": snapshot.get("provider_created_at"),
+                "provider_updated_at": snapshot.get("provider_updated_at"),
             },
         )
         result = await self._session.execute(
@@ -412,13 +690,19 @@ class InventoryRepository:
         )
         if instance is None or volume is None:
             return False
+        try:
+            validated_resource = validate_volume_attachment_resource(resource)
+        except ValueError as exc:
+            raise InventoryPersistenceError(
+                "volume attachment resource failed canonical validation"
+            ) from exc
         relation = {
             "instance_id": instance.id,
             "volume_id": volume.id,
             "provider_volume_resource_id": volume.provider_resource_id,
-            "device": (resource or {}).get("device"),
-            "boot_index": (resource or {}).get("boot_index"),
-            "delete_on_termination": (resource or {}).get("delete_on_termination"),
+            "device": validated_resource.get("device"),
+            "boot_index": validated_resource.get("boot_index"),
+            "delete_on_termination": validated_resource.get("delete_on_termination"),
         }
         if operation == "attach":
             await self._session.merge(InstanceVolume(**relation))
@@ -626,6 +910,12 @@ class InventoryRepository:
         sync_id: uuid.UUID,
         item: dict[str, Any],
     ) -> None:
+        try:
+            item = canonicalize_inventory_item(item)
+        except ValidationError as exc:
+            if any(error.get("type") == "ownership_conflict" for error in exc.errors()):
+                raise InventoryPersistenceError(OWNERSHIP_CONFLICT_MESSAGE) from exc
+            raise InventoryPersistenceError("inventory item failed canonical validation") from exc
         now = datetime.now(UTC)
         # Identity resources are provider-global.  When an administrative
         # resource is observed through another project-scoped connection,
@@ -659,6 +949,8 @@ class InventoryRepository:
             "provider_resource_id": item["provider_resource_id"],
             "name": item["name"],
             "provider_status": item.get("provider_status"),
+            "provider_created_at": _parse_provider_timestamp(item.get("provider_created_at")),
+            "provider_updated_at": _parse_provider_timestamp(item.get("provider_updated_at")),
             "last_seen_at": now,
             "last_sync_id": sync_id,
             "lifecycle_state": item.get("lifecycle_state", "ACTIVE"),
@@ -666,18 +958,18 @@ class InventoryRepository:
             "provider_attributes": copy.deepcopy(item.get("attributes", {})),
         }
         attrs = item.get("attributes", {})
-        owner_project_id = (
-            item.get("project_provider_resource_id")
-            or item.get("project_id")
-            or item.get("tenant_id")
-            or attrs.get("project_id")
-            or attrs.get("tenant_id")
-        )
+        try:
+            owner_project_id = resolve_owner_project_provider_resource_id(item, attrs)
+        except OwnershipConflictError as exc:
+            raise InventoryPersistenceError(str(exc)) from exc
+        except ValueError as exc:
+            raise InventoryPersistenceError(str(exc)) from exc
         if model is not Project and hasattr(model, "project_id"):
-            values["project_provider_resource_id"] = owner_project_id
-            values["project_id"] = await self._resolve_project_id(
-                provider_connection_id, owner_project_id
-            )
+            if owner_project_id is not None:
+                values["project_provider_resource_id"] = owner_project_id
+                values["project_id"] = await self._resolve_project_id(
+                    provider_connection_id, owner_project_id
+                )
         # Promote identity ownership fields to typed columns while retaining
         # provider_attributes for provider-specific data.
         if model is Project:
@@ -776,6 +1068,25 @@ class InventoryRepository:
                 key_type=item.get("key_type", attrs.get("type")),
                 public_key=item.get("public_key", attrs.get("public_key")),
             )
+        if model is Image:
+            values.update(
+                visibility=item.get("visibility"),
+                size_bytes=item.get("size_bytes"),
+                min_disk_gib=item.get("min_disk_gib"),
+                min_ram_mib=item.get("min_ram_mib"),
+                disk_format=item.get("disk_format"),
+                checksum=item.get("checksum"),
+            )
+        if model is Flavor:
+            values.update(
+                vcpus=item.get("vcpus"),
+                ram_mib=item.get("ram_mib"),
+                root_disk_gib=item.get("root_disk_gib"),
+                ephemeral_disk_gib=item.get("ephemeral_disk_gib"),
+                swap_mib=item.get("swap_mib"),
+                is_public=item.get("is_public"),
+                enabled=item.get("enabled"),
+            )
         statement = pg_insert(model).values(**values)
         conflict_set: dict[str, Any] = {
             "name": statement.excluded.name,
@@ -802,6 +1113,29 @@ class InventoryRepository:
                     "provider_id": statement.excluded.provider_id,
                 }
             )
+        elif model in (
+            RoleAssignment,
+            Quota,
+            AvailabilityZone,
+            VolumeType,
+            Volume,
+            VolumeSnapshot,
+            Keypair,
+            Image,
+            Flavor,
+        ):
+            # Keep all typed fields synchronized while preserving the generic
+            # provider attributes used by older consumers.
+            typed = {
+                c.name: statement.excluded[c.name]
+                for c in model.__table__.columns
+                if c.name in values
+                and c.name not in {"id", "provider_connection_id", "provider_resource_id"}
+            }
+            typed.update({"updated_at": now})
+            if hasattr(model, "project_id"):
+                typed.update(_project_ownership_conflict_update(model, statement))
+            conflict_set = typed
         elif hasattr(model, "project_id") and model is not Quota:
             conflict_set.update(
                 {
@@ -814,25 +1148,6 @@ class InventoryRepository:
             )
         elif model is IdentityDomain:
             conflict_set["enabled"] = statement.excluded.enabled
-        elif model in (
-            RoleAssignment,
-            Quota,
-            AvailabilityZone,
-            VolumeType,
-            Volume,
-            VolumeSnapshot,
-            Keypair,
-        ):
-            # Keep all typed fields synchronized while preserving the generic
-            # provider attributes used by older consumers.
-            typed = {
-                c.name: statement.excluded[c.name]
-                for c in model.__table__.columns
-                if c.name in values
-                and c.name not in {"id", "provider_connection_id", "provider_resource_id"}
-            }
-            typed.update({"updated_at": now})
-            conflict_set = typed
         statement = statement.on_conflict_do_update(
             index_elements=["provider_connection_id", "provider_resource_id"],
             set_=conflict_set,

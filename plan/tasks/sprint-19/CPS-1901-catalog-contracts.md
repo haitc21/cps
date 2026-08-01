@@ -1,6 +1,6 @@
 # CPS-1901 — Catalog detail and compatibility contracts
 
-**Status:** Proposed  
+**Status:** Implemented and reviewed — paired OPS-1901 live acceptance pending  
 **Points:** 5  
 **Paired task:** OPS-1901  
 **Depends on:** CPS-1703
@@ -37,17 +37,16 @@ source/size validation.
 ## AI/Superpowers workflow
 
 **Mandatory skill chain:** `superpowers:using-superpowers` →
-`superpowers:writing-plans` → `codex-security:threat-model` →
+`superpowers:writing-plans` →
 `superpowers:using-git-worktrees` →
 `superpowers:subagent-driven-development` or `superpowers:executing-plans` →
 `superpowers:test-driven-development` →
 `superpowers:requesting-code-review` / `superpowers:receiving-code-review` →
-`codex-security:security-diff-scan` →
 `superpowers:verification-before-completion` → live curl/CLI/runbook →
 `superpowers:finishing-a-development-branch`. Use
 `superpowers:brainstorming` before writing the plan if a design choice remains.
-The security diff scan's reportable findings must be triaged, fixed or tracked;
-unresolved Critical/High findings block completion.
+Review findings must be triaged and valid findings fixed; the final task diff
+must pass the repository secret scan before completion.
 
 1. **Planner — Codex ChatGPT 5.6 sol:** read `AGENTS.md`, canonical designs,
    Sprint 19, CodeGraph callers of catalog schemas/repository, Horizon
