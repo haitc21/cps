@@ -12,6 +12,13 @@ from pydantic import ValidationError as PydanticValidationError
 from cps.contracts.errors import CommonError
 from cps.contracts.messages.delivery import DeliveryMetadata, assert_strict_wire_header_types
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.flavor_operations import (
+    FlavorAccessReplaceRequest,
+    FlavorCreateRequest,
+    FlavorDeleteRequest,
+    FlavorExtraSpecsPatchRequest,
+    FlavorOperationResult,
+)
 from cps.contracts.messages.inventory import InventoryBatchPayload
 from cps.contracts.messages.resource_operations import (
     ResourceOperationRequest,
@@ -28,6 +35,8 @@ _ERROR_SCHEMA = "jsonschema/common_error.schema.json"
 _DELIVERY_SCHEMA = "jsonschema/delivery_metadata.schema.json"
 _RESOURCE_OPERATION_PREFIX = "fixtures/resource_operations/"
 _RESOURCE_OPERATION_SCHEMA = "jsonschema/resource_operation.schema.json"
+_FLAVOR_OPERATION_PREFIX = "fixtures/flavor_operations/"
+_FLAVOR_OPERATION_SCHEMA = "jsonschema/flavor_operation.schema.json"
 _INVENTORY_BATCH_SCHEMA = "jsonschema/inventory_batch.schema.json"
 _CAPABILITY_SCHEMA = "jsonschema/capability_document.schema.json"
 _CATALOG_CAPABILITY_KEYS = frozenset(
@@ -222,6 +231,27 @@ def _scan_fixture_secrets(path: Path, *, label: str) -> str | None:
     return None
 
 
+def validate_flavor_operation_document(base: Path, raw: dict[str, object]) -> None:
+    """Apply canonical JSON Schema plus runtime-only cross-field semantics."""
+    loaded = _schema_validator(base / _FLAVOR_OPERATION_SCHEMA, label=_FLAVOR_OPERATION_SCHEMA)
+    if isinstance(loaded, str):
+        raise ValueError(loaded)
+    loaded.validate(raw)
+    operation = raw.get("operation")
+    if raw.get("state") is not None:
+        FlavorOperationResult.model_validate(raw)
+    elif operation == "create":
+        FlavorCreateRequest.model_validate(raw)
+    elif operation == "delete":
+        FlavorDeleteRequest.model_validate(raw)
+    elif operation == "access.replace":
+        FlavorAccessReplaceRequest.model_validate(raw)
+    elif operation == "extra_specs.patch":
+        FlavorExtraSpecsPatchRequest.model_validate(raw)
+    else:
+        raise ValueError("unknown flavor operation")
+
+
 def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
     fixture_paths = sorted(
         path
@@ -259,6 +289,9 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
     has_resource_operation_fixtures = any(
         label.startswith(_RESOURCE_OPERATION_PREFIX) for label, _raw in parsed_fixtures
     )
+    has_flavor_operation_fixtures = any(
+        label.startswith(_FLAVOR_OPERATION_PREFIX) for label, _raw in parsed_fixtures
+    )
     if has_envelope_fixtures and not has_envelope_schema:
         return len(fixture_paths), f"missing file: {_ENVELOPE_SCHEMA}"
     if has_error_fixtures and not has_error_schema:
@@ -267,6 +300,8 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
         return len(fixture_paths), f"missing file: {_DELIVERY_SCHEMA}"
     if has_resource_operation_fixtures and not (base / _RESOURCE_OPERATION_SCHEMA).is_file():
         return len(fixture_paths), f"missing file: {_RESOURCE_OPERATION_SCHEMA}"
+    if has_flavor_operation_fixtures and not (base / _FLAVOR_OPERATION_SCHEMA).is_file():
+        return len(fixture_paths), f"missing file: {_FLAVOR_OPERATION_SCHEMA}"
 
     envelope_validator: Draft202012Validator | None = None
     error_validator: Draft202012Validator | None = None
@@ -294,6 +329,12 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
         if isinstance(loaded, str):
             return len(fixture_paths), loaded
         resource_operation_validator = loaded
+    flavor_operation_validator: Draft202012Validator | None = None
+    if has_flavor_operation_fixtures:
+        loaded = _schema_validator(base / _FLAVOR_OPERATION_SCHEMA, label=_FLAVOR_OPERATION_SCHEMA)
+        if isinstance(loaded, str):
+            return len(fixture_paths), loaded
+        flavor_operation_validator = loaded
 
     for label, raw in parsed_fixtures:
         secret_error = _scan_fixture_secrets(base / label, label=label)
@@ -323,6 +364,13 @@ def validate_contract_semantics(base: Path) -> tuple[int, str | None]:
                 semantic_error = None
             except (PydanticValidationError, ValidationError):
                 semantic_error = f"fixture failed resource operation validation: {label}"
+        elif label.startswith(_FLAVOR_OPERATION_PREFIX):
+            assert flavor_operation_validator is not None
+            try:
+                validate_flavor_operation_document(base, raw)
+                semantic_error = None
+            except (PydanticValidationError, ValidationError, ValueError):
+                semantic_error = f"fixture failed flavor operation validation: {label}"
         elif has_envelope_schema or has_error_schema or has_delivery_schema:
             semantic_error = f"unsupported fixture path: {label}"
         else:

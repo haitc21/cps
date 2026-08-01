@@ -9,8 +9,13 @@ from pydantic import ValidationError
 
 from cps.contracts.errors import CommonError
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.flavor_operations import FlavorOperationResult
 from cps.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLAVOR_ACCESS_REPLACE,
+    FLAVOR_CREATE,
+    FLAVOR_DELETE,
+    FLAVOR_EXTRA_SPECS_PATCH,
     OPERATION_COMPLETED,
     OPERATION_FAILED,
     OPERATION_PROGRESS,
@@ -61,7 +66,8 @@ class OperationInboxHandler:
         self._bindings = bindings
         self._service = OperationService(repository)
 
-    async def handle(self, envelope: MessageEnvelope) -> None:
+    async def handle(self, envelope: MessageEnvelope) -> bool:
+        """Handle an event and report whether a completion changed terminal state."""
         if envelope.message_type not in SUPPORTED_EVENT_TYPES:
             msg = "unsupported event type"
             raise UnsupportedEventTypeError(msg)
@@ -76,11 +82,11 @@ class OperationInboxHandler:
         message_id = envelope.message_id
         if envelope.message_type == OPERATION_PROGRESS:
             await self._handle_progress(envelope, operation, message_id=message_id)
-            return
+            return False
         if envelope.message_type == OPERATION_COMPLETED:
-            await self._handle_completed(envelope, operation, message_id=message_id)
-            return
+            return await self._handle_completed(envelope, operation, message_id=message_id)
         await self._handle_failed(envelope, operation, message_id=message_id)
+        return False
 
     async def _assert_event_ownership(
         self,
@@ -156,11 +162,12 @@ class OperationInboxHandler:
         operation: Operation,
         *,
         message_id: uuid.UUID,
-    ) -> None:
+    ) -> bool:
         result_payload = envelope.payload.get("result")
         if not isinstance(result_payload, dict):
             msg = "completed result payload is invalid"
             raise InvalidOperationTransitionError(msg)
+        self._validate_flavor_completion(operation, result_payload)
         safe_result = validate_event_details({"result": result_payload}).to_dict()["result"]
         if operation.state in TERMINAL_STATES:
             await self._append_late_result(
@@ -168,7 +175,7 @@ class OperationInboxHandler:
                 message_id=message_id,
                 details={"event_type": OPERATION_COMPLETED, "result": safe_result},
             )
-            return
+            return False
         to_state = OperationState.SUCCEEDED
         validate_transition_target(operation.state, to_state)
         if operation.operation_type == CONNECTION_VALIDATE:
@@ -201,6 +208,36 @@ class OperationInboxHandler:
             from_state=operation.state,
             to_state=to_state,
         )
+        return True
+
+    @staticmethod
+    def _validate_flavor_completion(operation: Operation, result_payload: dict[str, Any]) -> None:
+        expected = {
+            FLAVOR_CREATE: "create",
+            FLAVOR_DELETE: "delete",
+            FLAVOR_ACCESS_REPLACE: "access.replace",
+            FLAVOR_EXTRA_SPECS_PATCH: "extra_specs.patch",
+        }.get(operation.operation_type)
+        if expected is None:
+            return
+        try:
+            result = FlavorOperationResult.model_validate(result_payload)
+        except ValidationError as exc:
+            raise InvalidOperationTransitionError("flavor result payload is invalid") from exc
+        if (
+            result.operation_id != operation.id
+            or result.state != "SUCCEEDED"
+            or result.operation != expected
+        ):
+            raise InvalidOperationTransitionError("flavor result does not match operation")
+        requested_id = operation.request_payload.get("provider_resource_id")
+        actual_id = result.provider_resource_id
+        if result.resource is not None:
+            if actual_id is not None and actual_id != result.resource.provider_resource_id:
+                raise InvalidOperationTransitionError("flavor result identity mismatch")
+            actual_id = result.resource.provider_resource_id
+        if requested_id is not None and requested_id != actual_id:
+            raise InvalidOperationTransitionError("flavor result identity mismatch")
 
     async def _handle_failed(
         self,

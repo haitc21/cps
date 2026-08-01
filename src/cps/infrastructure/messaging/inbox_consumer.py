@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from cps.contracts.messages.delivery import DeliveryMetadata
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.flavor_operations import FlavorOperationResult
 from cps.contracts.messages.types import (
     INVENTORY_BATCH,
     INVENTORY_COMPLETED,
@@ -397,9 +398,38 @@ class EventInboxConsumer:
             if envelope.message_type in {INVENTORY_BATCH, INVENTORY_COMPLETED}:
                 await InventoryInboxHandler(uow.inventory, uow.operations).handle(envelope)
             else:
-                await handler.handle(envelope)
+                completion_applied = await handler.handle(envelope)
                 result = envelope.payload.get("result", {})
-                if envelope.message_type == OPERATION_COMPLETED and isinstance(result, dict):
+                if (
+                    envelope.message_type == OPERATION_COMPLETED
+                    and completion_applied
+                    and isinstance(result, dict)
+                ):
+                    if result.get("resource_type") == "flavor":
+                        typed_flavor_result = FlavorOperationResult.model_validate(result)
+                        operation = result.get("operation")
+                        resource = (
+                            typed_flavor_result.resource.model_dump(mode="json")
+                            if typed_flavor_result.resource is not None
+                            else None
+                        )
+                        if operation in {"create", "access.replace", "extra_specs.patch"}:
+                            if not isinstance(resource, dict):
+                                raise InventoryEventError(
+                                    "flavor result requires a complete snapshot"
+                                )
+                            await uow.inventory.persist_flavor_result(
+                                provider_connection_id=envelope.provider_connection_id,
+                                flavor=resource,
+                            )
+                        elif operation == "delete" and isinstance(
+                            result.get("provider_resource_id"), str
+                        ):
+                            await uow.inventory.mark_resource_deleted(
+                                "flavor",
+                                envelope.provider_connection_id,
+                                result["provider_resource_id"],
+                            )
                     instance = result.get("instance")
                     if isinstance(instance, dict):
                         await uow.inventory.persist_instance_result(

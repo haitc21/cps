@@ -63,6 +63,26 @@ class OperationRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_connection_idempotency_key(
+        self, *, provider_connection_id: uuid.UUID, idempotency_key: str
+    ) -> Operation | None:
+        result = await self._session.execute(
+            select(Operation).where(
+                Operation.provider_connection_id == provider_connection_id,
+                Operation.idempotency_key == idempotency_key,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def lock_connection_idempotency_key(
+        self, *, provider_connection_id: uuid.UUID, idempotency_key: str
+    ) -> None:
+        """Serialize all operation types sharing one connection/key transaction."""
+        lock_scope = f"{provider_connection_id}:{idempotency_key}"
+        await self._session.execute(
+            select(func.pg_advisory_xact_lock(func.hashtextextended(lock_scope, 0)))
+        )
+
     async def cps_created_volume_snapshot_exists(
         self,
         *,

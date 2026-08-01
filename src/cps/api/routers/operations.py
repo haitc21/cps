@@ -11,6 +11,11 @@ from cps.api.dependencies import get_uow
 from cps.api.pagination import PaginationParams, resolve_pagination
 from cps.api.prefixes import admin_operation_status_url, member_operation_status_url
 from cps.api.response import api_success, paged_from_offset
+from cps.api.schemas.flavor import (
+    FlavorAccessReplaceBody,
+    FlavorCreateBody,
+    FlavorExtraSpecsPatchBody,
+)
 from cps.api.schemas.identity import (
     IdentityLifecycleRequest,
     QuotaRequestBody,
@@ -29,6 +34,12 @@ from cps.api.schemas.volume import VolumeAttachmentOperationBody, VolumeOperatio
 from cps.api.schemas.volume_snapshot import VolumeSnapshotOperationBody
 from cps.application.operations import OperationApplicationService
 from cps.contracts.api_response import BaseResponse, PagedData
+from cps.contracts.messages.flavor_operations import (
+    FlavorAccessReplaceRequest,
+    FlavorCreateRequest,
+    FlavorDeleteRequest,
+    FlavorExtraSpecsPatchRequest,
+)
 from cps.contracts.messages.identity import (
     IdentityOperation,
     IdentityResourceRequest,
@@ -68,6 +79,112 @@ def _accepted(
         ValidationAccepted(operation=operation, status_url=status_url),
         status_code=status.HTTP_202_ACCEPTED,
     )
+
+
+async def _flavor_operation(
+    connection_id: uuid.UUID,
+    typed: FlavorCreateRequest
+    | FlavorDeleteRequest
+    | FlavorAccessReplaceRequest
+    | FlavorExtraSpecsPatchRequest,
+    request: Request,
+    idempotency_key: str | None,
+    uow: SqlAlchemyUnitOfWork,
+) -> BaseResponse[ValidationAccepted]:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    if len(idempotency_key) > 128:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key exceeds maximum length")
+    operation = await _service(uow).create_flavor_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=typed,
+    )
+    await uow.commit()
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
+
+
+@admin_router.post(
+    "/provider-connections/{connection_id}/flavors",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+    description="Flavor core fields are immutable; create a distinct flavor instead.",
+)
+async def create_flavor(
+    connection_id: uuid.UUID,
+    body: FlavorCreateBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    typed = FlavorCreateRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    )
+    return await _flavor_operation(connection_id, typed, request, idempotency_key, uow)
+
+
+@admin_router.delete(
+    "/provider-connections/{connection_id}/flavors/{flavor_id}",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def delete_flavor(
+    connection_id: uuid.UUID,
+    flavor_id: str,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    typed = FlavorDeleteRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id,
+        provider_resource_id=flavor_id,
+    )
+    return await _flavor_operation(connection_id, typed, request, idempotency_key, uow)
+
+
+@admin_router.put(
+    "/provider-connections/{connection_id}/flavors/{flavor_id}/access",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def replace_flavor_access(
+    connection_id: uuid.UUID,
+    flavor_id: str,
+    body: FlavorAccessReplaceBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    typed = FlavorAccessReplaceRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id,
+        provider_resource_id=flavor_id, **body.model_dump(),
+    )
+    return await _flavor_operation(connection_id, typed, request, idempotency_key, uow)
+
+
+@admin_router.patch(
+    "/provider-connections/{connection_id}/flavors/{flavor_id}/extra-specs",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def patch_flavor_extra_specs(
+    connection_id: uuid.UUID,
+    flavor_id: str,
+    body: FlavorExtraSpecsPatchBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    typed = FlavorExtraSpecsPatchRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id,
+        provider_resource_id=flavor_id, **body.model_dump(),
+    )
+    return await _flavor_operation(connection_id, typed, request, idempotency_key, uow)
 
 
 @member_router.post(

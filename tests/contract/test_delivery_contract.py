@@ -60,6 +60,12 @@ EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
         "fixtures/events/inventory_batch_image_minimal.json",
         "fixtures/events/inventory_batch_flavor_full.json",
         "fixtures/events/inventory_batch_flavor_minimal.json",
+        "fixtures/flavor_operations/access_replace_request.json",
+        "fixtures/flavor_operations/create_request.json",
+        "fixtures/flavor_operations/delete_request.json",
+        "fixtures/flavor_operations/extra_specs_patch_request.json",
+        "fixtures/flavor_operations/result.json",
+        "jsonschema/flavor_operation.schema.json",
     }
 )
 
@@ -438,7 +444,7 @@ def test_semantic_validation_validates_all_inventory_batch_payloads_against_json
 
     fixture_count, error = validate_contract_semantics(ROOT)
     assert error is None, error
-    assert fixture_count == 13
+    assert fixture_count == 18
 
 
 def test_semantic_validation_validates_catalog_inventory_items_against_json_schema() -> None:
@@ -446,7 +452,7 @@ def test_semantic_validation_validates_catalog_inventory_items_against_json_sche
 
     fixture_count, error = validate_contract_semantics(ROOT)
     assert error is None, error
-    assert fixture_count == 13
+    assert fixture_count == 18
 
 
 def test_semantic_validation_rejects_inventory_fixture_payload_schema_drift(tmp_path) -> None:

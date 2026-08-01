@@ -304,6 +304,69 @@ class InventoryRepository:
         )
         return result.scalar_one_or_none() is not None
 
+    async def live_flavor_name_exists_case_insensitive(
+        self, provider_connection_id: uuid.UUID, name: str
+    ) -> bool:
+        result = await self._session.execute(
+            select(Flavor.id).where(
+                Flavor.provider_connection_id == provider_connection_id,
+                func.lower(Flavor.name) == name.casefold(),
+                Flavor.lifecycle_state != "DELETED",
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def project_provider_ids_belong_to_provider(
+        self, provider_id: uuid.UUID, provider_resource_ids: list[str]
+    ) -> bool:
+        """Resolve live Keystone project identities across a provider aggregate."""
+        if not provider_resource_ids:
+            return True
+        count = await self._session.scalar(
+            select(func.count(func.distinct(Project.provider_resource_id))).where(
+                Project.provider_id == provider_id,
+                Project.provider_resource_id.in_(provider_resource_ids),
+                Project.lifecycle_state != "DELETED",
+            )
+        )
+        return count == len(provider_resource_ids)
+
+    async def flavor_mutation_state(
+        self, provider_connection_id: uuid.UUID, provider_resource_id: str
+    ) -> tuple[bool, bool] | None:
+        """Return ``(is_public, catalog_approved)`` for a live flavor."""
+        row = await self._session.execute(
+            select(Flavor.is_public, Flavor.provider_attributes).where(
+                Flavor.provider_connection_id == provider_connection_id,
+                Flavor.provider_resource_id == provider_resource_id,
+                Flavor.lifecycle_state == "ACTIVE",
+                Flavor.enabled.is_not(False),
+            )
+        )
+        value = row.one_or_none()
+        if value is None:
+            return None
+        return value.is_public is True, value.provider_attributes.get("catalog_approved") is True
+
+    async def flavor_is_used_on_provider(
+        self, provider_id: uuid.UUID, provider_resource_id: str
+    ) -> bool:
+        """Fail closed when any live instance on this provider references a flavor."""
+        found = await self._session.scalar(
+            select(Instance.id)
+            .join(
+                ProviderConnection,
+                ProviderConnection.id == Instance.provider_connection_id,
+            )
+            .where(
+                ProviderConnection.provider_id == provider_id,
+                Instance.flavor_provider_resource_id == provider_resource_id,
+                Instance.lifecycle_state != "DELETED",
+            )
+            .limit(1)
+        )
+        return found is not None
+
     async def catalog_resource_is_approved(
         self,
         resource_type: str,
@@ -655,6 +718,54 @@ class InventoryRepository:
             select(VolumeSnapshot).where(
                 VolumeSnapshot.provider_connection_id == provider_connection_id,
                 VolumeSnapshot.provider_resource_id == provider_resource_id,
+            )
+        )
+        return result.scalar_one()
+
+    async def persist_flavor_result(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        flavor: dict[str, Any],
+    ) -> Flavor:
+        """Upsert one validated, complete flavor operation snapshot."""
+        from cps.contracts.messages.flavor_operations import FlavorSnapshot
+
+        snapshot = FlavorSnapshot.model_validate(flavor)
+        existing = await self._session.scalar(
+            select(Flavor).where(
+                Flavor.provider_connection_id == provider_connection_id,
+                Flavor.provider_resource_id == snapshot.provider_resource_id,
+            )
+        )
+        prior_attributes = existing.provider_attributes if existing is not None else {}
+        attributes = {
+            "catalog_approved": prior_attributes.get("catalog_approved", False),
+            "access_project_ids": snapshot.access_project_ids,
+            "extra_specs": snapshot.extra_specs,
+        }
+        await self._upsert_resource(
+            model=Flavor,
+            provider_connection_id=provider_connection_id,
+            sync_id=uuid.uuid4(),
+            item={
+                "provider_resource_id": snapshot.provider_resource_id,
+                "name": snapshot.name,
+                "lifecycle_state": "ACTIVE",
+                "vcpus": snapshot.vcpus,
+                "ram_mib": snapshot.ram_mib,
+                "root_disk_gib": snapshot.root_disk_gib,
+                "ephemeral_disk_gib": snapshot.ephemeral_disk_gib,
+                "swap_mib": snapshot.swap_mib,
+                "is_public": snapshot.is_public,
+                "enabled": True,
+                "attributes": attributes,
+            },
+        )
+        result = await self._session.execute(
+            select(Flavor).where(
+                Flavor.provider_connection_id == provider_connection_id,
+                Flavor.provider_resource_id == snapshot.provider_resource_id,
             )
         )
         return result.scalar_one()

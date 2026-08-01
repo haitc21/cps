@@ -1,0 +1,1 @@
+{"schema_version":"1.0","operation_id":"019fbe28-9ad1-76e0-827c-28b5249c4d75","provider_connection_id":"019fb259-cc0b-726a-b98a-22dcc24734b7","required_scope":"SYSTEM","resource_type":"flavor","operation":"access.replace","provider_resource_id":"flavor-1","project_provider_resource_ids":["project-a"]}

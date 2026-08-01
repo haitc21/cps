@@ -15,7 +15,9 @@ from cps.api.schemas.operations import (
 )
 from cps.application.audit import project_operation_audit
 from cps.contracts.errors import (
+    CapabilityUnsupportedError,
     CatalogPolicyViolationError,
+    DomainConflictError,
     IdempotencyKeyReusedError,
     InstanceStateConflictError,
     NetworkPolicyViolationError,
@@ -24,6 +26,12 @@ from cps.contracts.errors import (
     ProviderConnectionNotFoundError,
 )
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.flavor_operations import (
+    FlavorAccessReplaceRequest,
+    FlavorCreateRequest,
+    FlavorDeleteRequest,
+    FlavorExtraSpecsPatchRequest,
+)
 from cps.contracts.messages.identity import (
     IdentityOperation,
     IdentityResourceRequest,
@@ -36,6 +44,10 @@ from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLAVOR_ACCESS_REPLACE,
+    FLAVOR_CREATE,
+    FLAVOR_DELETE,
+    FLAVOR_EXTRA_SPECS_PATCH,
     FLOATING_IP_ALLOCATE,
     FLOATING_IP_ASSOCIATE,
     FLOATING_IP_DISASSOCIATE,
@@ -101,7 +113,7 @@ from cps.domain.messaging.outbox import OutboxDraft
 from cps.domain.operations.create import create_operation_idempotent
 from cps.domain.operations.errors import IdempotencyConflictError
 from cps.domain.operations.service import OperationService
-from cps.infrastructure.db.models.enums import OperationState
+from cps.infrastructure.db.models.enums import ConnectionScopeKind, ConnectionStatus, OperationState
 from cps.infrastructure.db.repositories.inventory import InventoryRepository
 from cps.infrastructure.db.repositories.operations import OperationRepository
 from cps.infrastructure.db.repositories.outbox import OutboxRepository
@@ -122,6 +134,148 @@ class OperationApplicationService:
         self._repository = repository
         self._outbox = outbox
         self._inventory = inventory
+
+    async def create_flavor_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: FlavorCreateRequest
+        | FlavorDeleteRequest
+        | FlavorAccessReplaceRequest
+        | FlavorExtraSpecsPatchRequest,
+    ) -> OperationView:
+        """Validate and enqueue one explicit system-scoped flavor mutation."""
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        if (
+            connection.status is not ConnectionStatus.VALID
+            or connection.scope_kind is not ConnectionScopeKind.SYSTEM
+        ):
+            raise CapabilityUnsupportedError(
+                "flavor administration requires a validated SYSTEM connection"
+            )
+
+        message_type = {
+            FlavorCreateRequest: FLAVOR_CREATE,
+            FlavorDeleteRequest: FLAVOR_DELETE,
+            FlavorAccessReplaceRequest: FLAVOR_ACCESS_REPLACE,
+            FlavorExtraSpecsPatchRequest: FLAVOR_EXTRA_SPECS_PATCH,
+        }[type(request)]
+        await self._repository.lock_connection_idempotency_key(
+            provider_connection_id=connection.id, idempotency_key=idempotency_key
+        )
+        existing_key = await self._repository.get_by_connection_idempotency_key(
+            provider_connection_id=connection.id, idempotency_key=idempotency_key
+        )
+        if existing_key is not None and existing_key.operation_type != message_type:
+            raise IdempotencyKeyReusedError
+        feature = {
+            FLAVOR_CREATE: "flavor.create",
+            FLAVOR_DELETE: "flavor.delete",
+            FLAVOR_ACCESS_REPLACE: "flavor.access",
+            FLAVOR_EXTRA_SPECS_PATCH: "flavor.extra_specs",
+        }[message_type]
+        raw_features = (connection.capabilities or {}).get("features", {})
+        capability = raw_features.get(feature) if isinstance(raw_features, dict) else None
+        if not isinstance(capability, dict) or capability.get("supported") is not True:
+            raise CapabilityUnsupportedError
+        if self._inventory is None:
+            raise RuntimeError("inventory repository is required")
+        if isinstance(request, FlavorCreateRequest):
+            if await self._inventory.live_flavor_name_exists_case_insensitive(
+                connection.id, request.name
+            ):
+                raise DomainConflictError("A live flavor already uses this name")
+            if (
+                request.provider_resource_id
+                and await self._inventory.resource_belongs_to_connection(
+                    "flavor", connection.id, request.provider_resource_id
+                )
+            ):
+                raise DomainConflictError("A live flavor already uses this provider ID")
+            if not await self._inventory.project_provider_ids_belong_to_provider(
+                connection.provider_id, request.access_project_ids
+            ):
+                raise ProviderConnectionNotFoundError
+        else:
+            flavor_state = await self._inventory.flavor_mutation_state(
+                connection.id, request.provider_resource_id
+            )
+            if flavor_state is None:
+                raise ProviderConnectionNotFoundError
+            is_public, catalog_approved = flavor_state
+            if isinstance(request, FlavorAccessReplaceRequest):
+                if is_public:
+                    raise DomainConflictError("Public flavor access cannot be replaced")
+                if not await self._inventory.project_provider_ids_belong_to_provider(
+                    connection.provider_id, request.project_provider_resource_ids
+                ):
+                    raise ProviderConnectionNotFoundError
+            if isinstance(request, FlavorDeleteRequest):
+                if catalog_approved:
+                    raise DomainConflictError("Approved flavor cannot be deleted")
+                if await self._inventory.flavor_is_used_on_provider(
+                    connection.provider_id, request.provider_resource_id
+                ):
+                    raise DomainConflictError("Flavor is referenced by a live instance")
+
+        operation_id = uuid.uuid5(connection.id, f"flavor:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "flavor-command")
+        payload = request.model_dump(
+            mode="json", exclude={"schema_version", "operation_id"}
+        )
+        payload["operation_id"] = str(operation_id)
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": datetime.now(UTC),
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=envelope.occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        metrics.increment("cps_operations_created_total")
+        return to_view(operation)
 
     async def create_validation(
         self, connection_id: uuid.UUID, *, idempotency_key: str, correlation_id: uuid.UUID

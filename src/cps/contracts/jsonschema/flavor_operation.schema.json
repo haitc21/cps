@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Flavor operation request or result",
+  "oneOf": [
+    {"$ref": "#/$defs/Request"},
+    {"$ref": "#/$defs/Result"}
+  ],
+  "$defs": {
+    "Uuid": {"type": "string", "format": "uuid"},
+    "SafeString": {"type": "string", "minLength": 1, "maxLength": 255, "not": {"pattern": ".*(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]=|[Tt][Oo][Kk][Ee][Nn]=|[Bb][Ee][Aa][Rr][Ee][Rr][^a-zA-Z0-9]+|[Bb][Aa][Ss][Ii][Cc][^a-zA-Z0-9]+|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][^a-zA-Z0-9]*[Kk][Ee][Yy]).*"}},
+    "ProviderId": {"allOf": [{"$ref": "#/$defs/SafeString"}, {"pattern": "^[A-Za-z0-9. _-]+$"}]},
+    "SafePropertyName": {"allOf": [{"$ref": "#/$defs/SafeString"}, {"not": {"pattern": ".*(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Tt][Oo][Kk][Ee][Nn]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][^a-zA-Z0-9]*[Kk][Ee][Yy]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]).*"}}]},
+    "ProjectIds": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"$ref": "#/$defs/SafeString"}},
+    "Specs": {"type": "object", "maxProperties": 128, "propertyNames": {"$ref": "#/$defs/SafePropertyName"}, "additionalProperties": {"$ref": "#/$defs/SafeString"}},
+    "Request": {
+      "oneOf": [
+        {"$ref": "#/$defs/CreateRequest"},
+        {"$ref": "#/$defs/DeleteRequest"},
+        {"$ref": "#/$defs/AccessReplaceRequest"},
+        {"$ref": "#/$defs/ExtraSpecsPatchRequest"}
+      ],
+      "discriminator": {
+        "propertyName": "operation",
+        "mapping": {
+          "create": "#/$defs/CreateRequest",
+          "delete": "#/$defs/DeleteRequest",
+          "access.replace": "#/$defs/AccessReplaceRequest",
+          "extra_specs.patch": "#/$defs/ExtraSpecsPatchRequest"
+        }
+      }
+    },
+    "CreateRequest": {
+      "type": "object",
+      "required": ["schema_version", "operation_id", "provider_connection_id", "required_scope", "resource_type", "operation", "name", "vcpus", "ram_mib", "root_disk_gib", "ephemeral_disk_gib", "swap_mib", "is_public", "access_project_ids", "extra_specs"],
+      "properties": {
+        "schema_version": {"const": "1.0"}, "operation_id": {"$ref": "#/$defs/Uuid"},
+        "provider_connection_id": {"$ref": "#/$defs/Uuid"}, "required_scope": {"const": "SYSTEM"},
+        "resource_type": {"const": "flavor"}, "operation": {"const": "create"},
+        "name": {"$ref": "#/$defs/SafeString"},
+        "provider_resource_id": {"anyOf": [{"$ref": "#/$defs/ProviderId"}, {"type": "null"}]},
+        "vcpus": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "ram_mib": {"type": "integer", "minimum": 1, "maximum": 16777216},
+        "root_disk_gib": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "ephemeral_disk_gib": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "swap_mib": {"type": "integer", "minimum": 0, "maximum": 16777216},
+        "is_public": {"type": "boolean"}, "access_project_ids": {"$ref": "#/$defs/ProjectIds"},
+        "extra_specs": {"$ref": "#/$defs/Specs"}
+      },
+      "allOf": [{"if": {"properties": {"is_public": {"const": true}}}, "then": {"properties": {"access_project_ids": {"maxItems": 0}}}}],
+      "additionalProperties": false
+    },
+    "DeleteRequest": {
+      "type": "object", "required": ["schema_version", "operation_id", "provider_connection_id", "required_scope", "resource_type", "operation", "provider_resource_id"],
+      "properties": {"schema_version": {"const": "1.0"}, "operation_id": {"$ref": "#/$defs/Uuid"}, "provider_connection_id": {"$ref": "#/$defs/Uuid"}, "required_scope": {"const": "SYSTEM"}, "resource_type": {"const": "flavor"}, "operation": {"const": "delete"}, "provider_resource_id": {"$ref": "#/$defs/ProviderId"}},
+      "additionalProperties": false
+    },
+    "AccessReplaceRequest": {
+      "type": "object", "required": ["schema_version", "operation_id", "provider_connection_id", "required_scope", "resource_type", "operation", "provider_resource_id", "project_provider_resource_ids"],
+      "properties": {"schema_version": {"const": "1.0"}, "operation_id": {"$ref": "#/$defs/Uuid"}, "provider_connection_id": {"$ref": "#/$defs/Uuid"}, "required_scope": {"const": "SYSTEM"}, "resource_type": {"const": "flavor"}, "operation": {"const": "access.replace"}, "provider_resource_id": {"$ref": "#/$defs/ProviderId"}, "project_provider_resource_ids": {"$ref": "#/$defs/ProjectIds"}},
+      "additionalProperties": false
+    },
+    "ExtraSpecsPatchRequest": {
+      "type": "object", "required": ["schema_version", "operation_id", "provider_connection_id", "required_scope", "resource_type", "operation", "provider_resource_id", "set", "unset"],
+      "properties": {"schema_version": {"const": "1.0"}, "operation_id": {"$ref": "#/$defs/Uuid"}, "provider_connection_id": {"$ref": "#/$defs/Uuid"}, "required_scope": {"const": "SYSTEM"}, "resource_type": {"const": "flavor"}, "operation": {"const": "extra_specs.patch"}, "provider_resource_id": {"$ref": "#/$defs/ProviderId"}, "set": {"$ref": "#/$defs/Specs"}, "unset": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"$ref": "#/$defs/SafePropertyName"}}},
+      "anyOf": [{"properties": {"set": {"minProperties": 1}}}, {"properties": {"unset": {"minItems": 1}}}],
+      "additionalProperties": false
+    },
+    "Snapshot": {
+      "type": "object", "required": ["provider_resource_id", "name", "vcpus", "ram_mib", "root_disk_gib", "ephemeral_disk_gib", "swap_mib", "is_public", "access_project_ids", "extra_specs"],
+      "properties": {"provider_resource_id": {"$ref": "#/$defs/ProviderId"}, "name": {"$ref": "#/$defs/SafeString"}, "vcpus": {"type": "integer", "minimum": 1, "maximum": 4096}, "ram_mib": {"type": "integer", "minimum": 1, "maximum": 16777216}, "root_disk_gib": {"type": "integer", "minimum": 0, "maximum": 1048576}, "ephemeral_disk_gib": {"type": "integer", "minimum": 0, "maximum": 1048576}, "swap_mib": {"type": "integer", "minimum": 0, "maximum": 16777216}, "is_public": {"type": "boolean"}, "access_project_ids": {"$ref": "#/$defs/ProjectIds"}, "extra_specs": {"$ref": "#/$defs/Specs"}},
+      "additionalProperties": false
+    },
+    "Result": {
+      "type": "object", "required": ["schema_version", "operation_id", "resource_type", "operation", "state", "provider_resource_id", "resource", "error"],
+      "properties": {"schema_version": {"const": "1.0"}, "operation_id": {"$ref": "#/$defs/Uuid"}, "resource_type": {"const": "flavor"}, "operation": {"enum": ["create", "delete", "access.replace", "extra_specs.patch"]}, "state": {"enum": ["SUCCEEDED", "FAILED"]}, "provider_resource_id": {"anyOf": [{"$ref": "#/$defs/SafeString"}, {"type": "null"}]}, "resource": {"anyOf": [{"$ref": "#/$defs/Snapshot"}, {"type": "null"}]}, "error": {"anyOf": [{"type": "object", "minProperties": 1, "maxProperties": 16, "additionalProperties": {"$ref": "#/$defs/SafeString"}}, {"type": "null"}]}},
+      "allOf": [
+        {"if": {"properties": {"state": {"const": "FAILED"}}}, "then": {"properties": {"resource": {"type": "null"}, "error": {"type": "object"}}}},
+        {"if": {"properties": {"state": {"const": "SUCCEEDED"}, "operation": {"const": "delete"}}}, "then": {"properties": {"provider_resource_id": {"$ref": "#/$defs/SafeString"}, "resource": {"type": "null"}, "error": {"type": "null"}}}},
+        {"if": {"properties": {"state": {"const": "SUCCEEDED"}, "operation": {"enum": ["create", "access.replace", "extra_specs.patch"]}}}, "then": {"properties": {"resource": {"$ref": "#/$defs/Snapshot"}, "error": {"type": "null"}}}}
+      ],
+      "additionalProperties": false
+    }
+  }
+}
