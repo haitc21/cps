@@ -1,6 +1,6 @@
 # Sprint 19 — Catalog Detail and Compatibility Contracts (CPS-1901)
 
-**Status:** CPS implementation and Luna review approved; OPS pin and successful cross-service live evidence remain pending.  
+**Status:** Done
 **Branch:** `sprint-19/cps-1901`  
 **Base:** `81c1b02`  
 **Worktree:** `/home/haitc/.config/superpowers/worktrees/cps/cps-1901`
@@ -468,6 +468,21 @@ Live attempt `019fbe48-f7c9-73d3-83da-78e09f677376` proved CPS publication
 and OPS receipt, but the pre-OPS-1901 adapter did not finish provider
 collection. This is dependency evidence, not acceptance; a new idempotency key
 must be used after OPS-1901 is deployed.
+
+## Paired OPS-1901 closure (2026-08-02)
+
+- OPS commit: `254d60d`, pushed to `origin/sprint-19/ops-1901`.
+- CPS canonical commit: `b8a5ff7`, pushed to `origin/sprint-19/cps-1901`.
+- Project-scoped live operation `019fbe70-105a-7e7b-8a86-f0030e138204`
+  reached `SUCCEEDED`.
+- CPS/OpenStack CLI comparison matched the complete provider-ID set and
+  material fields for two images and three flavors.
+- Capability validation `019fbe70-a6c3-7c0e-a949-0abb22bc15d4` succeeded;
+  unsupported image import was reported explicitly rather than inferred.
+- The system-scoped Glance 403 path produced `SKIPPED_UNSUPPORTED`, proving no
+  misleading empty complete batch. No provider resource was created.
+- Linked OPS evidence: `docs/runbooks/sprint-19-catalog-mappers.md` in OPS
+  commit `254d60d`.
 
 ## Luna pass-19 remediation disposition (2026-08-01, worker round 19, PASS-2)
 

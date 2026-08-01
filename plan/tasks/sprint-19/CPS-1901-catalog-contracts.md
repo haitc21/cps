@@ -1,6 +1,6 @@
 # CPS-1901 — Catalog detail and compatibility contracts
 
-**Status:** Implemented and reviewed — paired OPS-1901 live acceptance pending  
+**Status:** Done
 **Points:** 5  
 **Paired task:** OPS-1901  
 **Depends on:** CPS-1703
