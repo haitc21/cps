@@ -33,6 +33,7 @@ from cps.contracts.messages.identity import (
     QuotaRequest,
     RoleAssignmentRequest,
 )
+from cps.contracts.messages.image_operations import ImageOperationRequest
 from cps.contracts.messages.instance import InstanceAction, InstanceCreateRequest
 from cps.contracts.messages.keypair_operations import KeypairOperationRequest
 from cps.contracts.messages.network_operations import NetworkOperationRequest
@@ -57,6 +58,16 @@ from cps.contracts.messages.types import (
     IDENTITY_QUOTA_UPDATE,
     IDENTITY_ROLE_ENSURE,
     IDENTITY_ROLE_REVOKE,
+    IMAGE_CREATE,
+    IMAGE_DEACTIVATE,
+    IMAGE_DELETE,
+    IMAGE_IMPORT,
+    IMAGE_MEMBER_GRANT,
+    IMAGE_MEMBER_REVOKE,
+    IMAGE_METADATA_PATCH,
+    IMAGE_PROTECTION_SET,
+    IMAGE_REACTIVATE,
+    IMAGE_VISIBILITY_SET,
     INSTANCE_CONFIRM_RESIZE,
     INSTANCE_CREATE,
     INSTANCE_DELETE,
@@ -1129,6 +1140,125 @@ class OperationApplicationService:
             FLAVOR_EXTRA_SPECS_PATCH: "flavor.extra_specs",
         }[message_type]
         value = features.get(feature)
+        if not (value is True or isinstance(value, dict) and value.get("supported") is True):
+            raise CapabilityUnsupportedError(feature)
+
+    async def create_image_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: ImageOperationRequest,
+    ) -> OperationView:
+        """Atomically queue a bounded, administrator-only Glance command."""
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        message_type = {
+            "create": IMAGE_CREATE,
+            "import_url": IMAGE_IMPORT,
+            "patch_metadata": IMAGE_METADATA_PATCH,
+            "set_visibility": IMAGE_VISIBILITY_SET,
+            "set_protection": IMAGE_PROTECTION_SET,
+            "grant_member": IMAGE_MEMBER_GRANT,
+            "revoke_member": IMAGE_MEMBER_REVOKE,
+            "deactivate": IMAGE_DEACTIVATE,
+            "reactivate": IMAGE_REACTIVATE,
+            "delete": IMAGE_DELETE,
+        }[request.operation.value]
+        self._assert_image_capability(connection, message_type)
+        parameters = request.model_dump(
+            mode="json",
+            exclude={
+                "schema_version",
+                "operation_id",
+                "resource_type",
+                "operation",
+                "required_scope",
+                "provider_connection_id",
+                "provider_resource_id",
+            },
+            exclude_none=True,
+        )
+        operation_id = uuid.uuid5(connection.id, f"image:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "image-command")
+        occurred_at = datetime.now(UTC)
+        payload = {
+            "operation_id": str(operation_id),
+            "resource_type": "image",
+            "operation": request.operation.value,
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "provider_resource_id": request.provider_resource_id,
+            "parameters": parameters | {"operation_marker": str(operation_id)},
+        }
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        return to_view(operation)
+
+    @staticmethod
+    def _assert_image_capability(connection: object, message_type: str) -> None:
+        capabilities = getattr(connection, "capabilities", None)
+        if not isinstance(capabilities, dict) or not isinstance(capabilities.get("features"), dict):
+            raise CapabilitiesNotAvailableError
+        feature = {
+            IMAGE_CREATE: "image.create",
+            IMAGE_IMPORT: "image.import",
+            IMAGE_METADATA_PATCH: "image.metadata",
+            IMAGE_VISIBILITY_SET: "image.metadata",
+            IMAGE_PROTECTION_SET: "image.metadata",
+            IMAGE_MEMBER_GRANT: "image.member",
+            IMAGE_MEMBER_REVOKE: "image.member",
+            IMAGE_DEACTIVATE: "image.deactivate",
+            IMAGE_REACTIVATE: "image.deactivate",
+            IMAGE_DELETE: "image.delete",
+        }[message_type]
+        value = capabilities["features"].get(feature)
         if not (value is True or isinstance(value, dict) and value.get("supported") is True):
             raise CapabilityUnsupportedError(feature)
 

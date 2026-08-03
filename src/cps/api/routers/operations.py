@@ -17,6 +17,7 @@ from cps.api.schemas.identity import (
     QuotaRequestBody,
     RoleAssignmentRequestBody,
 )
+from cps.api.schemas.image import ImageOperationBody
 from cps.api.schemas.instance import InstanceActionRequest, InstanceCreateRequest
 from cps.api.schemas.inventory import InventoryRefreshRequest, InventorySyncRequest
 from cps.api.schemas.keypair import KeypairOperationBody
@@ -37,6 +38,7 @@ from cps.contracts.messages.identity import (
     QuotaRequest,
     RoleAssignmentRequest,
 )
+from cps.contracts.messages.image_operations import ImageOperationRequest
 from cps.contracts.messages.keypair_operations import KeypairOperationRequest
 from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
@@ -150,6 +152,35 @@ async def flavor_operation(
         operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
     )
     operation = await _service(uow).create_flavor_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=typed,
+    )
+    await uow.commit()
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
+
+
+@admin_router.post(
+    "/provider-connections/{connection_id}/images",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def image_operation(
+    connection_id: uuid.UUID,
+    body: ImageOperationBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    typed = ImageOperationRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    )
+    operation = await _service(uow).create_image_operation(
         connection_id,
         idempotency_key=idempotency_key,
         correlation_id=uuid.UUID(request.state.correlation_id),
