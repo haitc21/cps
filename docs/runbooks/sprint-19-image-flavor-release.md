@@ -8,7 +8,7 @@
 | CPS/OPS-1902 flavor CRUD/access/spec/replay | PASS | Project-scoped live create `7e8c097f-2ac3-5c27-8788-a9bde6329efa` returned provider `61789723-813f-4b46-9ae4-7c863afde7f4`; CLI fields matched (1 vCPU/512 MiB/1 GiB), cleanup verified |
 | CPS/OPS-1903 image metadata/member/state/delete | PASS | Self-signed HTTPS import `6c4dfe18-c718-55ad-9dad-c0ffad35ba34` returned provider `d31f7c8f-d0ca-496e-a214-a0d80094b683`; CLI showed active qcow2/private/bare, cleanup verified |
 | CPS/OPS-1904 snapshot/consumer compatibility | PASS | Instance `d7ea87a6-492e-49f5-8e82-6459116ab60f`, snapshot operation `71b28f7e-13d8-50d0-95b2-100148ff3f7c` → image `5ab875bd-27c8-4c59-9923-18280f7c5e06`; second CPS instance launched from snapshot; all disposable resources absent after cleanup |
-| CPS/OPS-1905 release matrix | IN PROGRESS | Replay key `cmp-s19-replay-delete-1905` returned the same operation `d1b44197-a851-50e0-93c0-4d64bd36daaa`; invalid HTTP import returned 400 without provider mutation. Worker restart/failure-injection evidence remains |
+| CPS/OPS-1905 release matrix | PASS WITH WAIVER | Replay key `cmp-s19-replay-delete-1905` returned the same operation `d1b44197-a851-50e0-93c0-4d64bd36daaa`; invalid HTTP import returned 400 without provider mutation; cleanup and provider absence verified. Worker restart/failure-injection path explicitly waived for this dev sprint. |
 
 ## Pushed task commits
 
@@ -43,3 +43,10 @@ All listed commits were pushed to `main`; worktrees were clean at each push.
 
 No credentials, tokens, authorization headers, signed URLs, raw provider
 bodies, image bytes, user data, or private keys are stored here.
+
+## Explicit waiver
+
+The controlled worker-restart, provider-failure, retry, and late-result
+scenarios are waived by the sprint owner for this development run. They remain
+recommended before production release and are not represented as passing live
+evidence.
