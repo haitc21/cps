@@ -7,8 +7,8 @@
 | CPS/OPS-1901 contracts, pinning, catalog live comparison | PASS | CPS `8bcd4bd`, OPS `4a41308`; live inventory IDs/material fields matched; cleanup complete |
 | CPS/OPS-1902 flavor CRUD/access/spec/replay | PASS | Project-scoped live create `7e8c097f-2ac3-5c27-8788-a9bde6329efa` returned provider `61789723-813f-4b46-9ae4-7c863afde7f4`; CLI fields matched (1 vCPU/512 MiB/1 GiB), cleanup verified |
 | CPS/OPS-1903 image metadata/member/state/delete | PASS | Self-signed HTTPS import `6c4dfe18-c718-55ad-9dad-c0ffad35ba34` returned provider `d31f7c8f-d0ca-496e-a214-a0d80094b683`; CLI showed active qcow2/private/bare, cleanup verified |
-| CPS/OPS-1904 snapshot/consumer compatibility | BLOCKED | Automated gates pass; live flow depends on 1902 auth and 1903 source prerequisites; standalone volume-from-image API is not present in this codebase |
-| CPS/OPS-1905 release matrix | BLOCKED | 1904 snapshot/consumer and full replay/failure-injection matrix remain incomplete |
+| CPS/OPS-1904 snapshot/consumer compatibility | PASS | Instance `d7ea87a6-492e-49f5-8e82-6459116ab60f`, snapshot operation `71b28f7e-13d8-50d0-95b2-100148ff3f7c` → image `5ab875bd-27c8-4c59-9923-18280f7c5e06`; second CPS instance launched from snapshot; all disposable resources absent after cleanup |
+| CPS/OPS-1905 release matrix | IN PROGRESS | Replay key `cmp-s19-replay-delete-1905` returned the same operation `d1b44197-a851-50e0-93c0-4d64bd36daaa`; invalid HTTP import returned 400 without provider mutation. Worker restart/failure-injection evidence remains |
 
 ## Pushed task commits
 

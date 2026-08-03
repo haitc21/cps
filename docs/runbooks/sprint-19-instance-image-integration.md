@@ -19,7 +19,15 @@ Glance image metadata for that operation marker before issuing Nova
 
 ## Live acceptance and cleanup
 
-Pending paired CPS/OPS live execution. The required disposable sequence is:
+Live execution passed: CPS instance create `019fc6a5-7223-702d-9d22-1c8d09403048`
+created disposable server `d7ea87a6-492e-49f5-8e82-6459116ab60f`; snapshot
+operation `71b28f7e-13d8-50d0-95b2-100148ff3f7c` returned image
+`5ab875bd-27c8-4c59-9923-18280f7c5e06`. OpenStack CLI matched active
+qcow2/bare/private snapshot metadata. A second CPS instance was launched from
+that snapshot and then both servers plus the snapshot were deleted; CLI absence
+was verified.
+
+The disposable sequence is:
 create an approved-image/flavor instance through CPS; request the member
 instance-snapshot endpoint with an idempotency key; poll to terminal success;
 compare returned image ID/name/status/source metadata with `openstack image
