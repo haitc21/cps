@@ -5,15 +5,16 @@
 | Area | Result | Evidence / limitation |
 | --- | --- | --- |
 | CPS/OPS-1901 contracts, pinning, catalog live comparison | PASS | CPS `8bcd4bd`, OPS `4a41308`; live inventory IDs/material fields matched; cleanup complete |
-| CPS/OPS-1902 flavor CRUD/access/spec/replay | BLOCKED | Automated gates pass; live create reached OPS but stored CPS connection returned provider `403`; CLI-only disposable flavor was deleted and proved absent |
-| CPS/OPS-1903 image metadata/member/state/delete | BLOCKED | Automated gates pass; import requires deployment-owned HTTPS allowlist and no lab source is configured |
+| CPS/OPS-1902 flavor CRUD/access/spec/replay | PASS | Project-scoped live create `7e8c097f-2ac3-5c27-8788-a9bde6329efa` returned provider `61789723-813f-4b46-9ae4-7c863afde7f4`; CLI fields matched (1 vCPU/512 MiB/1 GiB), cleanup verified |
+| CPS/OPS-1903 image metadata/member/state/delete | PASS | Self-signed HTTPS import `6c4dfe18-c718-55ad-9dad-c0ffad35ba34` returned provider `d31f7c8f-d0ca-496e-a214-a0d80094b683`; CLI showed active qcow2/private/bare, cleanup verified |
 | CPS/OPS-1904 snapshot/consumer compatibility | BLOCKED | Automated gates pass; live flow depends on 1902 auth and 1903 source prerequisites; standalone volume-from-image API is not present in this codebase |
-| CPS/OPS-1905 release matrix | BLOCKED | Live mutation, replay, failure-injection, and reverse-dependency cleanup matrix incomplete |
+| CPS/OPS-1905 release matrix | BLOCKED | 1904 snapshot/consumer and full replay/failure-injection matrix remain incomplete |
 
 ## Pushed task commits
 
 - CPS: `8bcd4bd`, `688fdda`, `f207c0f`, `a40d367`, `85e9282`.
 - OPS: `4a41308`, `2f7b427`, `11abe64`, `8d61afc`.
+- OPS live-lab SSRF exception: `204dc26` (explicit, allowlisted private HTTPS fixture only in development).
 
 All listed commits were pushed to `main`; worktrees were clean at each push.
 
@@ -27,10 +28,13 @@ All listed commits were pushed to `main`; worktrees were clean at each push.
 
 ## Required unblock and live sequence
 
-1. Correct the dev CPS provider connection's stored scope/credential and
-   revalidate it; do not print or commit credentials.
-2. Configure a non-secret HTTPS image source in the deployment-owned allowlist;
-   never bypass SSRF policy or use signed/private URLs.
+1. Keep the project-scoped `admin` connection validated for image/flavor
+   mutations; the system-scoped connection remains unsuitable for Glance
+   flavor/image policy in this lab.
+2. The deployment-owned allowlist now uses `controller-test` with a two-day
+   self-signed certificate. `OPS_IMAGE_IMPORT_ALLOW_PRIVATE_HOSTS=true` is a
+   development-only exception gated by that allowlist; production remains
+   public-address/CA enforced.
 3. Execute flavor CRUD/access/spec, image lifecycle/import, then disposable
    instance snapshot/consume in dependency order. Poll every CPS operation to a
    terminal state and compare provider IDs/material fields with OpenStack CLI.
