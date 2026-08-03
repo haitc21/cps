@@ -1,6 +1,6 @@
 # CPS-1905 — Image/flavor cross-service acceptance
 
-**Status:** Proposed  
+**Status:** Blocked — live release matrix incomplete
 **Points:** 3  
 **Paired task:** OPS-1905  
 **Depends on:** CPS-1901..1904

@@ -1,6 +1,6 @@
 # Sprint 19 — Horizon-parity image and flavor administration
 
-**Status:** Proposed — requires Sprint Planning and design/security approval
+**Status:** Blocked — 1901 delivered; live lab prerequisites block 1902–1905
 **Dates:** 2026-08-03 to 2026-08-14
 **Capacity:** 34 CPS points
 **Sprint Goal:** An authorized cloud administrator can inspect and safely
@@ -33,21 +33,21 @@ the OpenStack CLI.
 
 | Story | Points | Owner | OPS dependency | Status |
 |---|---:|---|---|---|
-| CPS-1901 Catalog detail and compatibility contracts | 5 | CPS | OPS-1901 | Proposed |
-| CPS-1902 Flavor lifecycle and project access | 8 | CPS | OPS-1902 | Proposed |
-| CPS-1903 Image metadata, access, and lifecycle | 13 | CPS | OPS-1903 | Proposed |
-| CPS-1904 Instance image snapshot and consumer integration | 5 | CPS | OPS-1904 | Proposed |
-| CPS-1905 Cross-service acceptance and release evidence | 3 | CPS/OPS | OPS-1905 | Proposed |
+| CPS-1901 Catalog detail and compatibility contracts | 5 | CPS | OPS-1901 | Done |
+| CPS-1902 Flavor lifecycle and project access | 8 | CPS | OPS-1902 | Blocked |
+| CPS-1903 Image metadata, access, and lifecycle | 13 | CPS | OPS-1903 | Blocked |
+| CPS-1904 Instance image snapshot and consumer integration | 5 | CPS | OPS-1904 | Blocked |
+| CPS-1905 Cross-service acceptance and release evidence | 3 | CPS/OPS | OPS-1905 | Blocked |
 
 ## Task backlog
 
 | Task | Deliverable | Depends on | Status |
 |---|---|---|---|
-| [CPS-1901](../tasks/sprint-19/CPS-1901-catalog-contracts.md) | Detailed image/flavor query contracts and compatibility validation | CPS-1703 | Proposed |
-| [CPS-1902](../tasks/sprint-19/CPS-1902-flavor-lifecycle.md) | Durable flavor create/delete/access/extra-spec operations | CPS-1901 | Proposed |
-| [CPS-1903](../tasks/sprint-19/CPS-1903-image-lifecycle.md) | Durable image metadata/import/member/state/delete operations | CPS-1901 | Proposed |
-| [CPS-1904](../tasks/sprint-19/CPS-1904-instance-image-integration.md) | Instance snapshot plus launch/rebuild/volume compatibility checks | CPS-1901, CPS-1903 | Proposed |
-| [CPS-1905](../tasks/sprint-19/CPS-1905-catalog-acceptance.md) | Real-cloud matrix, runbooks, checksums, and cleanup | CPS-1902..1904 | Proposed |
+| [CPS-1901](../tasks/sprint-19/CPS-1901-catalog-contracts.md) | Detailed image/flavor query contracts and compatibility validation | CPS-1703 | Done |
+| [CPS-1902](../tasks/sprint-19/CPS-1902-flavor-lifecycle.md) | Durable flavor create/delete/access/extra-spec operations | CPS-1901 | Blocked |
+| [CPS-1903](../tasks/sprint-19/CPS-1903-image-lifecycle.md) | Durable image metadata/import/member/state/delete operations | CPS-1901 | Blocked |
+| [CPS-1904](../tasks/sprint-19/CPS-1904-instance-image-integration.md) | Instance snapshot plus launch/rebuild/volume compatibility checks | CPS-1901, CPS-1903 | Blocked |
+| [CPS-1905](../tasks/sprint-19/CPS-1905-catalog-acceptance.md) | Real-cloud matrix, runbooks, checksums, and cleanup | CPS-1902..1904 | Blocked |
 
 ## Mandatory AI delivery protocol for every task
 

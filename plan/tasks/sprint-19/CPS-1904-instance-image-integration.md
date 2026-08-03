@@ -1,6 +1,6 @@
 # CPS-1904 — Instance image snapshot and consumer integration
 
-**Status:** Proposed  
+**Status:** Blocked — dependent live provider prerequisites
 **Points:** 5  
 **Paired task:** OPS-1904  
 **Depends on:** CPS-1901, CPS-1903, CPS-1701

@@ -1,6 +1,6 @@
 # CPS-1902 — Flavor lifecycle and project access
 
-**Status:** Proposed  
+**Status:** Blocked — live provider connection authorization mismatch
 **Points:** 8  
 **Paired task:** OPS-1902  
 **Depends on:** CPS-1901

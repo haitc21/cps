@@ -1,6 +1,6 @@
 # CPS-1901 — Catalog detail and compatibility contracts
 
-**Status:** Proposed  
+**Status:** Done — automated and live acceptance passed
 **Points:** 5  
 **Paired task:** OPS-1901  
 **Depends on:** CPS-1703
