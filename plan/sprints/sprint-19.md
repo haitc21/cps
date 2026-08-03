@@ -1,8 +1,8 @@
 # Sprint 19 — Horizon-parity image and flavor administration
 
-**Status:** Done with explicit 1905 restart/failure-path waiver
+**Status:** Extension selected — original CPS-1901..1905 complete; CPS-1906..1908 planned
 **Dates:** 2026-08-03 to 2026-08-14
-**Capacity:** 34 CPS points
+**Capacity:** 34 delivered + 29-point Horizon parity extension
 **Sprint Goal:** An authorized cloud administrator can inspect and safely
 manage Nova flavors and Glance image metadata/access through durable CPS/OPS
 operations, with every delivered vertical slice verified through CPS API and
@@ -38,6 +38,9 @@ the OpenStack CLI.
 | CPS-1903 Image metadata, access, and lifecycle | 13 | CPS | OPS-1903 | Done |
 | CPS-1904 Instance image snapshot and consumer integration | 5 | CPS | OPS-1904 | Done |
 | CPS-1905 Cross-service acceptance and release evidence | 3 | CPS/OPS | OPS-1905 | Done (waived restart/failure path) |
+| CPS-1906 Horizon parity contract and presentation API | 8 | CPS | OPS-1906 | Planned |
+| CPS-1907 Flavor and image administration parity closure | 13 | CPS | OPS-1907 | Planned |
+| CPS-1908 API and provider live parity acceptance | 8 | CPS/OPS | OPS-1908 | Planned |
 
 ## Task backlog
 
@@ -48,6 +51,9 @@ the OpenStack CLI.
 | [CPS-1903](../tasks/sprint-19/CPS-1903-image-lifecycle.md) | Durable image metadata/import/member/state/delete operations | CPS-1901 | Done |
 | [CPS-1904](../tasks/sprint-19/CPS-1904-instance-image-integration.md) | Instance snapshot plus launch/rebuild/volume compatibility checks | CPS-1901, CPS-1903 | Done |
 | [CPS-1905](../tasks/sprint-19/CPS-1905-catalog-acceptance.md) | Real-cloud matrix, runbooks, checksums, and cleanup | CPS-1902..1904 | Done (waived restart/failure path) |
+| [CPS-1906](../tasks/sprint-19/CPS-1906-horizon-parity-contract.md) | Stable consumer-facing query/detail/operation contracts and Horizon provenance matrix | CPS-1901..1905 | Planned |
+| [CPS-1907](../tasks/sprint-19/CPS-1907-admin-parity-closure.md) | Close flavor/image administration gaps without unsafe flavor replacement or image byte transport | CPS-1906 | Planned |
+| [CPS-1908](../tasks/sprint-19/CPS-1908-portal-live-acceptance.md) | Cross-service API/provider acceptance, recovery, cleanup, and release evidence | CPS-1907 | Planned |
 
 ## Mandatory AI delivery protocol for every task
 
@@ -116,6 +122,11 @@ dependencies. Agents must invoke the named skills, not merely imitate them:
    compatibility at every consumer.
 5. CPS-1905/OPS-1905 run the full replay, recovery, real-cloud, and cleanup
    matrix and publish release evidence.
+6. CPS-1906/OPS-1906 freeze the consumer contract and document which Horizon
+   semantics/tests are reused, adapted, or intentionally excluded.
+7. CPS-1907/OPS-1907 close the remaining flavor/image administration gaps.
+8. CPS-1908/OPS-1908 prove the complete admin and member API journeys through
+   CPS and independently in OpenStack.
 
 ## Sprint acceptance
 
@@ -129,6 +140,10 @@ dependencies. Agents must invoke the named skills, not merely imitate them:
 - Every task has deterministic automated evidence plus one successful live
   `curl`/OpenStack CLI comparison, a cleanup check, a runbook, and task-scoped
   CPS/OPS commit hashes.
+- CPS exposes Horizon-equivalent flavor and image list/detail/filter and safe
+  lifecycle contracts; member API flows consume only approved compatible
+  catalog entries. Permission, unsupported, conflict, terminal failure, and
+  replay states are deterministic and tested.
 
 ## Risks and mitigations
 
