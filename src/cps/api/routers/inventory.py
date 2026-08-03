@@ -36,6 +36,8 @@ async def list_inventory(
     order: str = Query(default="asc", pattern="^(asc|desc)$"),  # noqa: B008
     uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
 ) -> BaseResponse[PagedData[InventoryResourceView]]:
+    if resource_type in {"image", "flavor"}:
+        raise ResourceNotFoundError
     try:
         rows, total = await uow.inventory.list_resources(
             resource_type,

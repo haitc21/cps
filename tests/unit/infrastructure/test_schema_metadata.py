@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from sqlalchemy import DateTime
 from sqlalchemy.orm import DeclarativeBase
@@ -216,3 +218,93 @@ def test_inventory_sync_and_batch_constraints_are_named() -> None:
         constraint.name for constraint in InventoryBatch.__table__.constraints
     }
     assert "operation_id" in InventorySync.__table__.columns
+
+
+def test_catalog_inventory_projection_separates_typed_and_bounded_fields() -> None:
+    from cps.infrastructure.db.repositories.inventory import catalog_inventory_projection
+
+    image_values, image_attributes = catalog_inventory_projection(
+        Image,
+        {
+            "visibility": "shared",
+            "disk_format": "qcow2",
+            "size_bytes": 2_147_483_648,
+            "min_disk_gib": 20,
+            "min_ram_mib": 2048,
+            "checksum": "a" * 32,
+            "catalog_approved": True,
+            "is_protected": True,
+            "container_format": "bare",
+            "virtual_size_bytes": 10_737_418_240,
+            "tags": ["ubuntu"],
+            "properties": {"os_distro": "ubuntu"},
+        },
+    )
+    flavor_values, flavor_attributes = catalog_inventory_projection(
+        Flavor,
+        {
+            "vcpus": 4,
+            "ram_mib": 8192,
+            "root_disk_gib": 80,
+            "ephemeral_disk_gib": 20,
+            "swap_mib": 1024,
+            "is_public": False,
+            "enabled": True,
+            "catalog_approved": True,
+            "extra_specs": {"hw:cpu_policy": "dedicated"},
+            "access_project_ids": ["project-1"],
+        },
+    )
+
+    assert image_values == {
+        "visibility": "shared",
+        "disk_format": "qcow2",
+        "size_bytes": 2_147_483_648,
+        "min_disk_gib": 20,
+        "min_ram_mib": 2048,
+        "checksum": "a" * 32,
+    }
+    assert image_attributes == {
+        "catalog_approved": True,
+        "container_format": "bare",
+        "is_protected": True,
+        "properties": {"os_distro": "ubuntu"},
+        "tags": ["ubuntu"],
+        "virtual_size_bytes": 10_737_418_240,
+    }
+    assert flavor_values == {
+        "vcpus": 4,
+        "ram_mib": 8192,
+        "root_disk_gib": 80,
+        "ephemeral_disk_gib": 20,
+        "swap_mib": 1024,
+        "is_public": False,
+        "enabled": True,
+    }
+    assert flavor_attributes == {
+        "access_project_ids": ["project-1"],
+        "catalog_approved": True,
+        "extra_specs": {"hw:cpu_policy": "dedicated"},
+    }
+
+
+def test_catalog_query_index_migration_is_present_and_reversible() -> None:
+    migration = (
+        Path(__file__).resolve().parents[3]
+        / "alembic"
+        / "versions"
+        / "20260801_0017_catalog_query_indexes.py"
+    )
+    assert migration.is_file()
+    source = migration.read_text(encoding="utf-8")
+    assert 'revision: str = "20260801_0017"' in source
+    assert 'down_revision: str | None = "20260731_0016"' in source
+    for index_name in (
+        "ix_images_catalog_approved_name",
+        "ix_flavors_catalog_approved_name",
+        "ix_images_catalog_filters",
+        "ix_images_catalog_owner",
+        "ix_flavors_catalog_filters",
+    ):
+        assert f'"{index_name}"' in source
+        assert f'op.drop_index("{index_name}"' in source

@@ -55,6 +55,11 @@ EXPECTED_NEW_MANIFEST_ENTRIES = frozenset(
         "fixtures/resource_operations/request.json",
         "fixtures/resource_operations/result.json",
         "jsonschema/resource_operation.schema.json",
+        "fixtures/events/inventory_batch_image_full.json",
+        "fixtures/events/inventory_batch_image_minimal.json",
+        "fixtures/events/inventory_batch_flavor_full.json",
+        "fixtures/events/inventory_batch_flavor_minimal.json",
+        "jsonschema/inventory_batch.schema.json",
     }
 )
 
@@ -433,4 +438,4 @@ def test_semantic_validation_includes_transport_fixture() -> None:
 
     fixture_count, error = validate_contract_semantics(ROOT)
     assert error is None
-    assert fixture_count == 9
+    assert fixture_count == 13

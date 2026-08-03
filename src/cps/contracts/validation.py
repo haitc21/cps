@@ -33,6 +33,18 @@ _REQUIRED_FEATURES = frozenset(
         "service.block_storage",
     }
 )
+_CATALOG_REQUIRED_FEATURES = frozenset(
+    {
+        "image.import",
+        "image.member",
+        "image.deactivate",
+        "image.reactivate",
+        "flavor.create",
+        "flavor.delete",
+        "flavor.access",
+        "flavor.extra_specs",
+    }
+)
 
 
 def _assert_safe_tree(value: object) -> None:
@@ -98,6 +110,9 @@ class CapabilityDocument(_VersionedContract):
             raise ValueError("capability document is missing required services")
         if not _REQUIRED_FEATURES.issubset(self.features):
             raise ValueError("capability document is missing required features")
+        minor = int(self.schema_version.split(".")[1])
+        if minor >= 1 and not _CATALOG_REQUIRED_FEATURES.issubset(self.features):
+            raise ValueError("capability document is missing required catalog features")
         return self
 
 

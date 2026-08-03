@@ -71,6 +71,45 @@ RESOURCE_ALIASES.update(
 )
 RESOURCE_ALIASES["indices"] = "instance"
 
+_CATALOG_TYPED_FIELDS: dict[type[Any], tuple[str, ...]] = {
+    Image: ("visibility", "disk_format", "size_bytes", "min_disk_gib", "min_ram_mib", "checksum"),
+    Flavor: (
+        "vcpus",
+        "ram_mib",
+        "root_disk_gib",
+        "ephemeral_disk_gib",
+        "swap_mib",
+        "is_public",
+        "enabled",
+    ),
+}
+_CATALOG_ATTRIBUTE_FIELDS: dict[type[Any], tuple[str, ...]] = {
+    Image: (
+        "catalog_approved",
+        "is_protected",
+        "container_format",
+        "virtual_size_bytes",
+        "tags",
+        "properties",
+    ),
+    Flavor: ("catalog_approved", "extra_specs", "access_project_ids"),
+}
+
+
+def catalog_inventory_projection(
+    model: type[Any], item: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split enriched catalog fields into queryable columns and safe metadata."""
+    raw_attributes = item.get("attributes", {})
+    attributes = copy.deepcopy(raw_attributes) if isinstance(raw_attributes, dict) else {}
+    typed_values = {
+        field: item[field] for field in _CATALOG_TYPED_FIELDS.get(model, ()) if field in item
+    }
+    for field in _CATALOG_ATTRIBUTE_FIELDS.get(model, ()):
+        if field in item:
+            attributes[field] = copy.deepcopy(item[field])
+    return typed_values, attributes
+
 
 class InventoryPersistenceError(RuntimeError):
     """Stable error for invalid or conflicting inventory persistence."""
@@ -238,6 +277,27 @@ class InventoryRepository:
             .limit(limit)
         )
         return list(result.scalars()), total
+
+    async def get_catalog_resource(
+        self,
+        resource_type: str,
+        provider_connection_id: uuid.UUID,
+        resource_id: uuid.UUID,
+    ) -> Any | None:
+        """Return one live, explicitly approved curated resource."""
+        resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
+        model = RESOURCE_MODELS.get(resource_type)
+        if model is None:
+            raise InventoryPersistenceError("unsupported inventory resource type")
+        result = await self._session.execute(
+            select(model).where(
+                model.id == resource_id,
+                model.provider_connection_id == provider_connection_id,
+                model.lifecycle_state != "DELETED",
+                model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def mark_resource_deleted(
         self,
@@ -653,6 +713,7 @@ class InventoryRepository:
                 canonical_connection_id = canonical.scalar_one_or_none()
                 if canonical_connection_id is not None:
                     provider_connection_id = canonical_connection_id
+        catalog_values, catalog_attributes = catalog_inventory_projection(model, item)
         values: dict[str, Any] = {
             "id": new_uuid7(),
             "provider_connection_id": provider_connection_id,
@@ -663,8 +724,9 @@ class InventoryRepository:
             "last_sync_id": sync_id,
             "lifecycle_state": item.get("lifecycle_state", "ACTIVE"),
             "deleted_at": None,
-            "provider_attributes": copy.deepcopy(item.get("attributes", {})),
+            "provider_attributes": catalog_attributes,
         }
+        values.update(catalog_values)
         attrs = item.get("attributes", {})
         owner_project_id = (
             item.get("project_provider_resource_id")
@@ -802,6 +864,33 @@ class InventoryRepository:
                     "provider_id": statement.excluded.provider_id,
                 }
             )
+        elif model in (Flavor, Image):
+            typed = {
+                column.name: statement.excluded[column.name]
+                for column in model.__table__.columns
+                if column.name in values
+                and column.name
+                not in {
+                    "id",
+                    "provider_connection_id",
+                    "provider_resource_id",
+                    "project_id",
+                    "project_provider_resource_id",
+                }
+            }
+            conflict_set.update(typed)
+            if model is Image:
+                conflict_set.update(
+                    {
+                        "project_id": sa.func.coalesce(
+                            statement.excluded.project_id, model.project_id
+                        ),
+                        "project_provider_resource_id": sa.func.coalesce(
+                            statement.excluded.project_provider_resource_id,
+                            model.project_provider_resource_id,
+                        ),
+                    }
+                )
         elif hasattr(model, "project_id") and model is not Quota:
             conflict_set.update(
                 {

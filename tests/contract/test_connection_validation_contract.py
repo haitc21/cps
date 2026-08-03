@@ -41,6 +41,14 @@ def test_capability_document_accepts_additive_minor_fields() -> None:
             "service.network": {"supported": True},
             "service.image": {"supported": True},
             "service.block_storage": {"supported": True},
+            "image.import": {"supported": False},
+            "image.member": {"supported": True},
+            "image.deactivate": {"supported": True},
+            "image.reactivate": {"supported": True},
+            "flavor.create": {"supported": True},
+            "flavor.delete": {"supported": True},
+            "flavor.access": {"supported": True},
+            "flavor.extra_specs": {"supported": True},
         },
         "future_field": "ignored by older consumers",
     }
@@ -52,6 +60,30 @@ def test_capability_document_accepts_additive_minor_fields() -> None:
 def test_capability_document_rejects_unknown_major(version: str) -> None:
     with pytest.raises(ValidationError):
         CapabilityDocument.model_validate({"schema_version": version})
+
+
+def test_capability_document_requires_catalog_lifecycle_features() -> None:
+    value = {
+        "schema_version": "1.1",
+        "services": {
+            "identity": {"available": True},
+            "compute": {"available": True},
+            "network": {"available": True},
+            "image": {"available": True},
+            "block_storage": {"available": True},
+        },
+        "features": {
+            "connection.authenticate": {"supported": True},
+            "service.identity": {"supported": True},
+            "service.compute": {"supported": True},
+            "service.network": {"supported": True},
+            "service.image": {"supported": True},
+            "service.block_storage": {"supported": True},
+        },
+    }
+
+    with pytest.raises(ValidationError, match="required catalog features"):
+        CapabilityDocument.model_validate(value)
 
 
 def test_capability_document_rejects_secret_and_oversized_payload() -> None:
