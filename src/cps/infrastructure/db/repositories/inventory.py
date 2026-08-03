@@ -441,6 +441,48 @@ class InventoryRepository:
         )
         return result.scalar_one()
 
+    async def persist_image_result(
+        self,
+        *,
+        provider_connection_id: uuid.UUID,
+        sync_id: uuid.UUID | None,
+        image: dict[str, Any],
+    ) -> Image:
+        """Project a mutation result as normal image inventory without image bytes."""
+        provider_resource_id = image.get("provider_resource_id")
+        name = image.get("name")
+        if not isinstance(provider_resource_id, str) or not isinstance(name, str):
+            raise InventoryPersistenceError("image result identity is invalid")
+        attributes = image.get("attributes", {})
+        if not isinstance(attributes, dict):
+            attributes = {}
+        await self._upsert_resource(
+            model=Image,
+            provider_connection_id=provider_connection_id,
+            sync_id=sync_id or uuid.uuid4(),
+            item={
+                "provider_resource_id": provider_resource_id,
+                "name": name,
+                "provider_status": image.get("provider_status"),
+                "lifecycle_state": image.get("lifecycle_state", "ACTIVE"),
+                "project_provider_resource_id": image.get("project_provider_resource_id"),
+                "visibility": image.get("visibility"),
+                "size_bytes": image.get("size_bytes"),
+                "min_disk_gib": image.get("min_disk_gib"),
+                "min_ram_mib": image.get("min_ram_mib"),
+                "disk_format": image.get("disk_format"),
+                "checksum": image.get("checksum"),
+                "attributes": attributes,
+            },
+        )
+        result = await self._session.execute(
+            select(Image).where(
+                Image.provider_connection_id == provider_connection_id,
+                Image.provider_resource_id == provider_resource_id,
+            )
+        )
+        return result.scalar_one()
+
     async def apply_volume_attachment_result(
         self,
         *,

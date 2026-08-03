@@ -410,6 +410,16 @@ class EventInboxConsumer:
                             volumes=result.get("volumes", []),
                         )
                     if (
+                        result.get("resource_type") == "image"
+                        and result.get("operation") == "snapshot"
+                        and isinstance(result.get("resource"), dict)
+                    ):
+                        await uow.inventory.persist_image_result(
+                            provider_connection_id=envelope.provider_connection_id,
+                            sync_id=None,
+                            image=result["resource"],
+                        )
+                    if (
                         result.get("resource_type") == "snapshot"
                         and result.get("operation") == "create"
                     ):

@@ -14,6 +14,12 @@ from cps.api.schemas.operations import (
     OperationView,
 )
 from cps.application.audit import project_operation_audit
+from cps.application.catalog_compatibility import (
+    CatalogFlavorSnapshot,
+    CatalogImageSnapshot,
+    CatalogUse,
+    evaluate_catalog_compatibility,
+)
 from cps.contracts.errors import (
     CapabilitiesNotAvailableError,
     CapabilityUnsupportedError,
@@ -35,6 +41,7 @@ from cps.contracts.messages.identity import (
 )
 from cps.contracts.messages.image_operations import ImageOperationRequest
 from cps.contracts.messages.instance import InstanceAction, InstanceCreateRequest
+from cps.contracts.messages.instance_snapshot_operations import InstanceSnapshotRequest
 from cps.contracts.messages.keypair_operations import KeypairOperationRequest
 from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
@@ -76,6 +83,7 @@ from cps.contracts.messages.types import (
     INSTANCE_REBUILD,
     INSTANCE_RESIZE,
     INSTANCE_REVERT_RESIZE,
+    INSTANCE_SNAPSHOT_CREATE,
     INSTANCE_START,
     INSTANCE_STOP,
     INVENTORY_COLLECT,
@@ -371,6 +379,94 @@ class OperationApplicationService:
         metrics.increment("cps_operations_created_total")
         return to_view(operation)
 
+    async def _catalog_row(
+        self,
+        resource_type: str,
+        connection_id: uuid.UUID,
+        provider_resource_id: str | None,
+    ) -> object | None:
+        if self._inventory is None or not provider_resource_id:
+            return None
+        rows, _ = await self._inventory.list_resources(
+            resource_type,
+            provider_connection_id=connection_id,
+            provider_resource_id=provider_resource_id,
+            limit=1,
+            offset=0,
+        )
+        return rows[0] if rows else None
+
+    @staticmethod
+    def _catalog_project_id(connection: object) -> str | None:
+        return getattr(connection, "scope_project_provider_resource_id", None) or getattr(
+            connection, "project_name", None
+        )
+
+    @staticmethod
+    def _image_catalog_snapshot(row: object) -> CatalogImageSnapshot:
+        attributes = getattr(row, "provider_attributes", {}) or {}
+        provider_connection_id = getattr(row, "provider_connection_id", None)
+        if not isinstance(provider_connection_id, uuid.UUID):
+            raise RuntimeError("catalog image has no provider connection")
+        return CatalogImageSnapshot(
+            provider_connection_id=provider_connection_id,
+            catalog_approved=attributes.get("catalog_approved") is True,
+            lifecycle_state=str(getattr(row, "lifecycle_state", "")),
+            provider_status=getattr(row, "provider_status", None),
+            visibility=getattr(row, "visibility", None),
+            disk_format=getattr(row, "disk_format", None),
+            container_format=attributes.get("container_format"),
+            min_disk_gib=getattr(row, "min_disk_gib", None),
+            min_ram_mib=getattr(row, "min_ram_mib", None),
+            owner_project_provider_resource_id=getattr(row, "project_provider_resource_id", None),
+            member_project_ids=attributes.get("member_project_ids"),
+        )
+
+    @staticmethod
+    def _flavor_catalog_snapshot(row: object) -> CatalogFlavorSnapshot:
+        attributes = getattr(row, "provider_attributes", {}) or {}
+        provider_connection_id = getattr(row, "provider_connection_id", None)
+        if not isinstance(provider_connection_id, uuid.UUID):
+            raise RuntimeError("catalog flavor has no provider connection")
+        return CatalogFlavorSnapshot(
+            provider_connection_id=provider_connection_id,
+            catalog_approved=attributes.get("catalog_approved") is True,
+            lifecycle_state=str(getattr(row, "lifecycle_state", "")),
+            enabled=getattr(row, "enabled", None),
+            is_public=getattr(row, "is_public", None),
+            ram_mib=getattr(row, "ram_mib", None),
+            root_disk_gib=getattr(row, "root_disk_gib", None),
+            access_project_ids=attributes.get("access_project_ids"),
+        )
+
+    async def _assert_catalog_compatible(
+        self,
+        *,
+        use: CatalogUse,
+        connection: object,
+        image_provider_resource_id: str | None,
+        flavor_provider_resource_id: str | None,
+    ) -> None:
+        project_id = self._catalog_project_id(connection)
+        if not project_id:
+            raise CatalogPolicyViolationError("CATALOG_DATA_INCOMPLETE")
+        connection_id = getattr(connection, "id", None)
+        if not isinstance(connection_id, uuid.UUID):
+            raise CatalogPolicyViolationError("CATALOG_DATA_INCOMPLETE")
+        image_row = await self._catalog_row("image", connection_id, image_provider_resource_id)
+        flavor_row = await self._catalog_row("flavor", connection_id, flavor_provider_resource_id)
+        result = evaluate_catalog_compatibility(
+            use=use,
+            image=self._image_catalog_snapshot(image_row) if image_row else None,
+            flavor=self._flavor_catalog_snapshot(flavor_row) if flavor_row else None,
+            provider_connection_id=connection_id,
+            project_provider_resource_id=project_id,
+        )
+        if not result.compatible:
+            raise CatalogPolicyViolationError(
+                ",".join(reason.value for reason in result.reason_codes)
+            )
+
     async def create_instance(
         self,
         connection_id: uuid.UUID,
@@ -404,14 +500,12 @@ class OperationApplicationService:
                 resource_type, connection.id, provider_resource_id
             ):
                 raise ProviderConnectionNotFoundError
-        for resource_type, provider_resource_id in (
-            ("flavor", request.flavor_provider_resource_id),
-            ("image", request.image_provider_resource_id),
-        ):
-            if not await self._inventory_resource_is_catalog_approved(
-                resource_type, connection.id, provider_resource_id
-            ):
-                raise CatalogPolicyViolationError
+        await self._assert_catalog_compatible(
+            use=CatalogUse.LAUNCH,
+            connection=connection,
+            image_provider_resource_id=request.image_provider_resource_id,
+            flavor_provider_resource_id=request.flavor_provider_resource_id,
+        )
         if request.availability_zone and not await self._inventory_resource_is_catalog_approved(
             "availability-zone", connection.id, request.availability_zone
         ):
@@ -527,6 +621,96 @@ class OperationApplicationService:
             project_provider_resource_id=project_provider_resource_id,
         )
 
+    @staticmethod
+    def _assert_instance_snapshot_capability(connection: object) -> None:
+        capabilities = getattr(connection, "capabilities", None)
+        if not isinstance(capabilities, dict) or not isinstance(capabilities.get("features"), dict):
+            raise CapabilitiesNotAvailableError
+        supported = capabilities["features"].get("instance.snapshot")
+        if not (
+            supported is True or isinstance(supported, dict) and supported.get("supported") is True
+        ):
+            raise CapabilityUnsupportedError("instance.snapshot")
+
+    async def create_instance_snapshot(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: InstanceSnapshotRequest,
+    ) -> OperationView:
+        """Queue a replay-safe, provider-side server image snapshot without bytes."""
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        self._assert_instance_snapshot_capability(connection)
+        instance = await self._catalog_row(
+            "instance", connection.id, request.instance_provider_resource_id
+        )
+        instance_project_id = getattr(instance, "project_provider_resource_id", None)
+        if instance is None or (
+            instance_project_id and instance_project_id != request.project_provider_resource_id
+        ):
+            raise ProviderConnectionNotFoundError
+        if (
+            str(getattr(instance, "lifecycle_state", "")).upper() != "ACTIVE"
+            or str(getattr(instance, "provider_status", "")).upper() != "ACTIVE"
+        ):
+            raise InstanceStateConflictError
+        operation_id = uuid.uuid5(connection.id, f"instance-snapshot:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "instance-snapshot-command")
+        occurred_at = datetime.now(UTC)
+        payload = request.model_dump(mode="json") | {"operation_id": str(operation_id)}
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": INSTANCE_SNAPSHOT_CREATE,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=INSTANCE_SNAPSHOT_CREATE,
+            routing_key=INSTANCE_SNAPSHOT_CREATE,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=INSTANCE_SNAPSHOT_CREATE,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        metrics.increment("cps_operations_created_total")
+        return to_view(operation)
+
     async def create_instance_action(
         self,
         connection_id: uuid.UUID,
@@ -553,6 +737,7 @@ class OperationApplicationService:
             InstanceAction.REBUILD: {"ACTIVE", "SHUTOFF"},
         }
         allowed_states = state_requirements.get(action)
+        instance_row: object | None = None
         if allowed_states is not None:
             rows, _ = await self._inventory.list_resources(
                 "instance",
@@ -562,24 +747,27 @@ class OperationApplicationService:
                 offset=0,
             )
             provider_status = str(rows[0].provider_status or "").upper() if rows else ""
+            instance_row = rows[0] if rows else None
             if provider_status not in allowed_states:
                 raise InstanceStateConflictError
         if action is InstanceAction.RESIZE:
-            if (
-                not resize_flavor_provider_resource_id
-                or not await self._inventory_resource_is_catalog_approved(
-                    "flavor", connection.id, resize_flavor_provider_resource_id
-                )
-            ):
-                raise CatalogPolicyViolationError
+            await self._assert_catalog_compatible(
+                use=CatalogUse.RESIZE,
+                connection=connection,
+                image_provider_resource_id=getattr(
+                    instance_row, "image_provider_resource_id", None
+                ),
+                flavor_provider_resource_id=resize_flavor_provider_resource_id,
+            )
         if action is InstanceAction.REBUILD:
-            if (
-                not rebuild_image_provider_resource_id
-                or not await self._inventory_resource_is_catalog_approved(
-                    "image", connection.id, rebuild_image_provider_resource_id
-                )
-            ):
-                raise CatalogPolicyViolationError
+            await self._assert_catalog_compatible(
+                use=CatalogUse.REBUILD,
+                connection=connection,
+                image_provider_resource_id=rebuild_image_provider_resource_id,
+                flavor_provider_resource_id=getattr(
+                    instance_row, "flavor_provider_resource_id", None
+                ),
+            )
         message_types = {
             InstanceAction.GET: INSTANCE_GET,
             InstanceAction.START: INSTANCE_START,
