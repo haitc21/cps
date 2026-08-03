@@ -11,6 +11,7 @@ from cps.api.dependencies import get_uow
 from cps.api.pagination import PaginationParams, resolve_pagination
 from cps.api.prefixes import admin_operation_status_url, member_operation_status_url
 from cps.api.response import api_success, paged_from_offset
+from cps.api.schemas.flavor import FlavorOperationBody
 from cps.api.schemas.identity import (
     IdentityLifecycleRequest,
     QuotaRequestBody,
@@ -29,6 +30,7 @@ from cps.api.schemas.volume import VolumeAttachmentOperationBody, VolumeOperatio
 from cps.api.schemas.volume_snapshot import VolumeSnapshotOperationBody
 from cps.application.operations import OperationApplicationService
 from cps.contracts.api_response import BaseResponse, PagedData
+from cps.contracts.messages.flavor_operations import FlavorOperationRequest
 from cps.contracts.messages.identity import (
     IdentityOperation,
     IdentityResourceRequest,
@@ -126,6 +128,35 @@ async def volume_operation(
     )
     await uow.commit()
     return _accepted(operation, status_url=member_operation_status_url(operation.id))
+
+
+@admin_router.post(
+    "/provider-connections/{connection_id}/flavors",
+    response_model=BaseResponse[ValidationAccepted],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def flavor_operation(
+    connection_id: uuid.UUID,
+    body: FlavorOperationBody,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    uow: SqlAlchemyUnitOfWork = Depends(get_uow),  # noqa: B008
+) -> BaseResponse[ValidationAccepted]:
+    if not idempotency_key:
+        from cps.contracts.errors import InvalidRequestError
+
+        raise InvalidRequestError("Idempotency-Key is required")
+    typed = FlavorOperationRequest(
+        operation_id=new_uuid7(), provider_connection_id=connection_id, **body.model_dump()
+    )
+    operation = await _service(uow).create_flavor_operation(
+        connection_id,
+        idempotency_key=idempotency_key,
+        correlation_id=uuid.UUID(request.state.correlation_id),
+        request=typed,
+    )
+    await uow.commit()
+    return _accepted(operation, status_url=admin_operation_status_url(operation.id))
 
 
 @member_router.post(

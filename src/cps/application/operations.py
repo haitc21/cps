@@ -15,6 +15,8 @@ from cps.api.schemas.operations import (
 )
 from cps.application.audit import project_operation_audit
 from cps.contracts.errors import (
+    CapabilitiesNotAvailableError,
+    CapabilityUnsupportedError,
     CatalogPolicyViolationError,
     IdempotencyKeyReusedError,
     InstanceStateConflictError,
@@ -24,6 +26,7 @@ from cps.contracts.errors import (
     ProviderConnectionNotFoundError,
 )
 from cps.contracts.messages.envelope import MessageEnvelope
+from cps.contracts.messages.flavor_operations import FlavorOperationRequest
 from cps.contracts.messages.identity import (
     IdentityOperation,
     IdentityResourceRequest,
@@ -36,6 +39,10 @@ from cps.contracts.messages.network_operations import NetworkOperationRequest
 from cps.contracts.messages.resource_operations import ScopeKind
 from cps.contracts.messages.types import (
     CONNECTION_VALIDATE,
+    FLAVOR_ACCESS_REPLACE,
+    FLAVOR_CREATE,
+    FLAVOR_DELETE,
+    FLAVOR_EXTRA_SPECS_PATCH,
     FLOATING_IP_ALLOCATE,
     FLOATING_IP_ASSOCIATE,
     FLOATING_IP_DISASSOCIATE,
@@ -1010,6 +1017,120 @@ class OperationApplicationService:
                     and (row.in_use or 0) >= row.limit_value
                 ):
                     raise NetworkQuotaExceededError
+
+    async def create_flavor_operation(
+        self,
+        connection_id: uuid.UUID,
+        *,
+        idempotency_key: str,
+        correlation_id: uuid.UUID,
+        request: FlavorOperationRequest,
+    ) -> OperationView:
+        """Queue a privileged immutable-shape flavor command atomically."""
+        connection = await self._repository.get_provider_connection(connection_id)
+        if connection is None or request.provider_connection_id != connection.id:
+            raise ProviderConnectionNotFoundError
+        message_type = {
+            "create": FLAVOR_CREATE,
+            "delete": FLAVOR_DELETE,
+            "replace_access": FLAVOR_ACCESS_REPLACE,
+            "patch_extra_specs": FLAVOR_EXTRA_SPECS_PATCH,
+        }[request.operation.value]
+        self._assert_flavor_capability(connection, message_type)
+        parameters: dict[str, object] = {}
+        if request.operation.value == "create":
+            for field in (
+                "name",
+                "vcpus",
+                "ram_mib",
+                "disk_gib",
+                "ephemeral_gib",
+                "swap_mib",
+                "is_public",
+            ):
+                parameters[field] = getattr(request, field)
+        elif request.operation.value == "replace_access":
+            parameters["access_project_ids"] = request.access_project_ids
+        else:
+            parameters["extra_specs"] = request.extra_specs
+            parameters["remove_extra_spec_keys"] = request.remove_extra_spec_keys
+        operation_id = uuid.uuid5(connection.id, f"flavor:{idempotency_key}")
+        message_id = uuid.uuid5(operation_id, "flavor-command")
+        occurred_at = datetime.now(UTC)
+        payload = {
+            "operation_id": str(operation_id),
+            "resource_type": "flavor",
+            "operation": request.operation.value,
+            "required_scope": request.required_scope.value,
+            "provider_connection_id": str(connection.id),
+            "provider_resource_id": request.provider_resource_id,
+            "parameters": parameters,
+        }
+        envelope = MessageEnvelope.model_validate(
+            {
+                "message_id": message_id,
+                "message_type": message_type,
+                "schema_version": "1.0",
+                "occurred_at": occurred_at,
+                "correlation_id": correlation_id,
+                "operation_id": operation_id,
+                "idempotency_key": idempotency_key,
+                "provider_id": connection.provider_id,
+                "provider_connection_id": connection.id,
+                "payload": payload,
+            }
+        )
+        draft = OutboxDraft(
+            aggregate_type="operation",
+            aggregate_id=operation_id,
+            message_id=message_id,
+            message_type=message_type,
+            routing_key=message_type,
+            payload=envelope.model_dump(mode="json"),
+            correlation_id=correlation_id,
+            occurred_at=occurred_at,
+        )
+        try:
+            operation = await create_operation_idempotent(
+                self._repository,
+                provider_connection_id=connection.id,
+                operation_type=message_type,
+                request_payload=payload,
+                correlation_id=correlation_id,
+                idempotency_key=idempotency_key,
+                operation_id=operation_id,
+                outbox_repository=self._outbox,
+                outbox_draft=draft,
+            )
+        except IdempotencyConflictError as exc:
+            raise IdempotencyKeyReusedError from exc
+        if operation.state == OperationState.ACCEPTED:
+            operation = await OperationService(self._repository).transition_operation(
+                operation_id=operation.id,
+                expected_version=operation.version,
+                to_state=OperationState.QUEUED,
+                details={"status": "QUEUED"},
+                message_id=message_id,
+            )
+        return to_view(operation)
+
+    @staticmethod
+    def _assert_flavor_capability(connection: object, message_type: str) -> None:
+        capabilities = getattr(connection, "capabilities", None)
+        if not isinstance(capabilities, dict):
+            raise CapabilitiesNotAvailableError
+        features = capabilities.get("features")
+        if not isinstance(features, dict):
+            raise CapabilitiesNotAvailableError
+        feature = {
+            FLAVOR_CREATE: "flavor.create",
+            FLAVOR_DELETE: "flavor.delete",
+            FLAVOR_ACCESS_REPLACE: "flavor.access",
+            FLAVOR_EXTRA_SPECS_PATCH: "flavor.extra_specs",
+        }[message_type]
+        value = features.get(feature)
+        if not (value is True or isinstance(value, dict) and value.get("supported") is True):
+            raise CapabilityUnsupportedError(feature)
 
     async def create_volume_operation(
         self,

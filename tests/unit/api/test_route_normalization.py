@@ -21,6 +21,7 @@ _ADMIN_PATHS = frozenset(
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/{{resource_type}}/{{action}}",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/role-assignments",
         f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/quotas",
+        f"{ADMIN_API_PREFIX}/provider-connections/{{connection_id}}/flavors",
         f"{ADMIN_API_PREFIX}/operations",
         f"{ADMIN_API_PREFIX}/operations/{{operation_id}}",
         f"{ADMIN_API_PREFIX}/operations/{{operation_id}}/events",
