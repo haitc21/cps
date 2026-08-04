@@ -14,9 +14,12 @@ from cps.contracts.api_response import BaseResponse, PagedData
 from cps.contracts.errors import ResourceNotFoundError
 from cps.infrastructure.db.repositories.inventory import InventoryPersistenceError
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
-from cps.security.auth.middleware import require_member
+from cps.security.auth.middleware import document_member_scope_headers, require_member
 
-router = APIRouter(tags=["Inventory"], dependencies=[Depends(require_member)])
+router = APIRouter(
+    tags=["Inventory"],
+    dependencies=[Depends(require_member), Depends(document_member_scope_headers)],
+)
 
 
 def _view(row: object) -> InventoryResourceView:

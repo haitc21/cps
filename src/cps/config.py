@@ -7,7 +7,7 @@ import binascii
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 EnvironmentName = Literal["development", "test", "production"]
@@ -21,6 +21,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
     environment: EnvironmentName = "development"
@@ -43,6 +44,10 @@ class Settings(BaseSettings):
     keycloak_issuer_override: str | None = None
     keycloak_audience: str | None = None
     keycloak_jwks_cache_ttl_seconds: int = 300
+    app_owner: str | None = Field(default=None, validation_alias="APP_OWNER")
+    tms_base_url: str | None = None
+    tms_connect_timeout_seconds: float = 1.0
+    tms_read_timeout_seconds: float = 3.0
 
     @property
     def keycloak_issuer(self) -> str:
@@ -62,6 +67,8 @@ class Settings(BaseSettings):
                 self.rabbitmq_url = (
                     "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"  # pragma: allowlist secret
                 )
+            if not self.tms_base_url:
+                self.tms_base_url = "http://127.0.0.1:3013"
             return self
 
         if self.environment == "test":
@@ -71,6 +78,8 @@ class Settings(BaseSettings):
                 )
             if not self.rabbitmq_url:
                 self.rabbitmq_url = "amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp"
+            if not self.tms_base_url:
+                self.tms_base_url = "http://127.0.0.1:3013"
             return self
 
         missing: list[str] = []
@@ -85,9 +94,17 @@ class Settings(BaseSettings):
                 _ = self.require_credential_keys
             except RuntimeError:
                 missing.append("CPS_CREDENTIAL_KEY_RING (invalid)")
+        if not self.tms_base_url:
+            missing.append("CPS_TMS_BASE_URL")
         if missing:
             raise ValueError(f"missing required production settings: {', '.join(missing)}")
         return self
+
+    @property
+    def require_tms_base_url(self) -> str:
+        if not self.tms_base_url:
+            raise RuntimeError("TMS base URL is not configured")
+        return self.tms_base_url.rstrip("/")
 
     @property
     def require_database_url(self) -> str:

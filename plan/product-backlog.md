@@ -508,10 +508,19 @@ or import requires a separately approved security and data-plane design.
 - **Sprint/Priority/Points:** 13 / Must / 13
 - **Depends on:** CPS-1202
 - **Coordinates with:** OPS-1202
-- **Acceptance:** CPS derives ownership for every tenant read/mutation, calls a
-  strict external authorization port once per business action, persists only
-  safe decision metadata, rejects deny/unavailable/expired decisions, and uses
-  a deterministic stub without modifying TMS/LMS.
+- **Acceptance (delivered ingress slice):** CPS authenticates protected public
+  requests with Keycloak, enforces exact client-role route policy and optional
+  verified-JWT `APP_OWNER` bypass, requires member `X-Org-ID` / `X-WS-ID`
+  scope headers, and fail-closed validates organization/workspace membership
+  through existing TMS role-read APIs
+  (`GET /organizations/{org_id}/members/{subject}/roles` and
+  `GET /organizations/{org_id}/workspaces/{workspace_id}/members/{subject}/roles`)
+  before entering member handlers; deny returns `403`, authority failure returns
+  `503`, and bearer tokens are never logged, persisted, returned, or published.
+  Per-resource ownership authorization, persisted decision metadata, and
+  queued-decision expiry remain follow-up. TMS/LMS repositories were not
+  modified. Closes the TMS integration dependency blocking CPS-1906; separate
+  OpenStack scope-policy work for CPS-1906 remains open.
 
 ## Epic CPS-E15 — CMP user block-storage lifecycle
 

@@ -2,19 +2,58 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Header, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import JSONResponse, Response
 
 from cps.api.response import envelope_from_domain_error
 from cps.config import Settings
-from cps.contracts.errors import AuthenticationError, AuthorizationError
+from cps.contracts.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    AuthorizationServiceUnavailableError,
+    DomainError,
+)
+from cps.security.auth.principal import AuthenticatedPrincipal
+from cps.security.auth.tms import HttpTmsMembershipAuthorizer, TmsAuthorizationUnavailable
 from cps.security.auth.verifier import JwtVerificationError, KeycloakJwtVerifier
 
 _PUBLIC_PATH_PREFIXES = ("/health/",)
 _PUBLIC_PATHS = frozenset({"/metrics"})
+ORG_SCOPE_HEADER = "X-Org-ID"
+WS_SCOPE_HEADER = "X-WS-ID"
+_MEMBER_SCOPE_HEADER_DESCRIPTION = (
+    "Required for authenticated member requests unless the caller is the configured APP_OWNER."
+)
+_ORG_SCOPE_HEADER_DESCRIPTION = (
+    f"Organization identifier for TMS membership authorization. {_MEMBER_SCOPE_HEADER_DESCRIPTION}"
+)
+_WS_SCOPE_HEADER_DESCRIPTION = (
+    f"Workspace identifier for TMS membership authorization. {_MEMBER_SCOPE_HEADER_DESCRIPTION}"
+)
+
+
+def document_member_scope_headers(
+    x_org_id: Annotated[
+        str | None,
+        Header(
+            alias=ORG_SCOPE_HEADER,
+            description=_ORG_SCOPE_HEADER_DESCRIPTION,
+        ),
+    ] = None,
+    x_ws_id: Annotated[
+        str | None,
+        Header(
+            alias=WS_SCOPE_HEADER,
+            description=_WS_SCOPE_HEADER_DESCRIPTION,
+        ),
+    ] = None,
+) -> None:
+    """Declare member scope headers in OpenAPI; enforced by KeycloakAuthMiddleware."""
+    return None
 
 
 def is_public_path(path: str) -> bool:
@@ -45,7 +84,7 @@ def _extract_bearer_token(authorization: str | None) -> str | None:
 
 def _error_response(
     request: Request,
-    exc: AuthenticationError | AuthorizationError,
+    exc: DomainError,
 ) -> JSONResponse:
     return envelope_from_domain_error(request, exc)
 
@@ -58,9 +97,13 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         app: Any,
         *,
         verifier: KeycloakJwtVerifier | None,
+        tms_authorizer: Callable[..., Awaitable[bool]],
+        app_owner: str | None,
     ) -> None:
         super().__init__(app)
         self._verifier = verifier
+        self._tms_authorizer = tms_authorizer
+        self._app_owner = app_owner
 
     async def dispatch(
         self,
@@ -86,31 +129,71 @@ class KeycloakAuthMiddleware(BaseHTTPMiddleware):
         except JwtVerificationError:
             return _error_response(request, AuthenticationError())
 
+        request.state.principal = principal
+        if principal.is_app_owner(self._app_owner):
+            return await call_next(request)
+
         if required_access == "admin" and not principal.can_access_admin_routes():
             return _error_response(request, AuthorizationError())
-        if required_access == "member" and not principal.is_member():
-            return _error_response(request, AuthorizationError())
+        if required_access == "member":
+            if not principal.can_access_member_routes():
+                return _error_response(request, AuthorizationError())
+            org_id = _validated_scope_header(request.headers.get(ORG_SCOPE_HEADER.lower()))
+            workspace_id = _validated_scope_header(request.headers.get(WS_SCOPE_HEADER.lower()))
+            if org_id is None or workspace_id is None:
+                return _error_response(request, AuthorizationError())
+            try:
+                allowed = await self._tms_authorizer(
+                    bearer_token=token,
+                    subject=principal.subject,
+                    org_id=org_id,
+                    workspace_id=workspace_id,
+                )
+            except TmsAuthorizationUnavailable:
+                return _error_response(request, AuthorizationServiceUnavailableError())
+            if not allowed:
+                return _error_response(request, AuthorizationError())
+            request.state.org_id = org_id
+            request.state.workspace_id = workspace_id
 
-        request.state.principal = principal
         return await call_next(request)
 
 
-def get_current_principal(request: Request) -> Any:
+def _validated_scope_header(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    if not normalized or len(normalized) > 255:
+        return None
+    return normalized
+
+
+def get_current_principal(request: Request) -> AuthenticatedPrincipal:
     principal = getattr(request.state, "principal", None)
-    if principal is None:
+    if not isinstance(principal, AuthenticatedPrincipal):
         raise AuthenticationError
     return principal
 
 
-def require_admin(request: Request) -> Any:
+def _is_app_owner_request(request: Request, principal: AuthenticatedPrincipal) -> bool:
+    settings = getattr(request.app.state, "settings", None)
+    app_owner = getattr(settings, "app_owner", None)
+    return bool(principal.is_app_owner(app_owner))
+
+
+def require_admin(request: Request) -> AuthenticatedPrincipal:
     principal = get_current_principal(request)
+    if _is_app_owner_request(request, principal):
+        return principal
     if not principal.can_access_admin_routes():
         raise AuthorizationError
     return principal
 
 
-def require_member(request: Request) -> Any:
+def require_member(request: Request) -> AuthenticatedPrincipal:
     principal = get_current_principal(request)
+    if _is_app_owner_request(request, principal):
+        return principal
     if not principal.is_member():
         raise AuthorizationError
     return principal
@@ -127,8 +210,16 @@ def create_keycloak_verifier(settings: Settings) -> KeycloakJwtVerifier:
 
 def install_keycloak_auth_middleware(app: Any, settings: Settings) -> None:
     verifier = create_keycloak_verifier(settings)
+    authorizer = HttpTmsMembershipAuthorizer(
+        base_url=settings.require_tms_base_url,
+        connect_timeout_seconds=settings.tms_connect_timeout_seconds,
+        read_timeout_seconds=settings.tms_read_timeout_seconds,
+    )
     app.state.keycloak_verifier = verifier
+    app.state.tms_authorizer = authorizer
     app.add_middleware(
         KeycloakAuthMiddleware,
         verifier=verifier,
+        tms_authorizer=authorizer.authorize,
+        app_owner=settings.app_owner,
     )

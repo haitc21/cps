@@ -1,18 +1,54 @@
 # CPS-1203 — Fail-closed resource authorization boundary
 
-**Status:** Deferred — excluded TMS-dependent authorization scope  
-**Active backlog:** No — TMS work is explicitly excluded from the current scope  
+**Status:** Done — ingress TMS scope authorization slice complete  
+**Active backlog:** No — synchronous public-API authorization boundary is
+delivered and verified; persisted decision metadata and queued-decision expiry
+remain follow-up work outside this slice.  
 **Points:** 13  
 **Depends on:** CPS-1202  
 **Paired task:** OPS-1202  
-**External dependency:** TMS internal authorization API, not implemented in this scope  
-**Design:** `../../../docs/superpowers/specs/2026-07-26-provider-tenancy-authorization-design.md`
+**External dependency:** Existing TMS role-read APIs (no TMS repository changes)  
+**Design:** `../../../docs/superpowers/specs/2026-07-26-provider-tenancy-authorization-design.md`  
+**Plan:** `../../../docs/superpowers/plans/2026-08-04-CPS-1203-tms-scope-authorization.md`  
+**Runbook:** `../../../docs/runbooks/live-cps-tms-scope-authorization-20260804.md`
 
-## Outcome
+## Delivered slice (2026-08-04)
+
+CPS authenticates every protected public request with Keycloak, enforces exact
+client-role route policy (`admin:admin` for `/api/v1/admin/**`, `member` for
+other `/api/v1/**`), optionally bypasses route-role and TMS checks for a
+configured `APP_OWNER` matched from verified JWT identity, and fail-closed
+validates member organization/workspace scope through synchronous TMS role reads
+before entering a member handler.
+
+Integrated TMS endpoints (existing, read-only):
+
+- `GET /organizations/{org_id}/members/{subject}/roles`
+- `GET /organizations/{org_id}/workspaces/{workspace_id}/members/{subject}/roles`
+
+Membership logic: non-empty `org:owner` in organization roles authorizes the
+organization and its workspaces; otherwise a non-empty workspace role list
+establishes membership. Member requests require non-empty `X-Org-ID` and
+`X-WS-ID` headers unless the caller is `APP_OWNER`. Explicit deny/not-found
+returns `403`; timeout, network failure, TMS 5xx, or malformed response returns
+`503`. Bearer tokens are forwarded to TMS only and never logged, persisted,
+returned, or published.
+
+Not delivered in this slice (do not claim):
+
+- Per-resource ownership resolver and authorization before every tenant
+  read/mutation/outbox side effect.
+- Persisted `AuthorizationDecision` metadata in `operations.actor_context`.
+- Queued-decision expiry and reauthorization before dispatch.
+- OPS safe decision context publication (OPS-1202 follow-up).
+
+## Outcome (full design — partial delivery)
 
 Every user-initiated tenant-resource read or mutation derives persisted
 ownership and receives an authorization decision before data disclosure,
-operation creation, outbox publication, or OpenStack mutation.
+operation creation, outbox publication, or OpenStack mutation. The ingress
+slice above is the first fail-closed TMS boundary; resource-level enforcement
+remains follow-up work.
 
 ## Change set
 
@@ -91,12 +127,18 @@ uv run mypy src
 uv run pytest -q
 ```
 
-## Done when
+## Done when (ingress slice)
 
-- Every tenant API path is covered by an authorization matrix test.
-- CPS fails closed for all authority failures.
-- OPS receives only a safe, valid decision context.
-- Production configuration cannot silently use the test stub.
+- [x] Protected public routes enforce Keycloak JWT, exact client roles, optional
+  `APP_OWNER` bypass, and TMS organization/workspace membership via scope
+  headers.
+- [x] CPS fails closed for deny, missing scope headers, and TMS authority
+  failures without handler, operation, commit, or outbox side effects.
+- [x] Focused auth suite, affected integration suite, full pytest, Ruff, mypy,
+  compose validation, and live positive/negative/TMS-outage recovery checks pass.
+- [x] Independent Luna review approved with no findings (2026-08-04).
+- [ ] Resource-level ownership resolver, persisted decision metadata, and OPS
+  safe decision context remain follow-up (OPS-1202 / later CPS work).
 
 ## Out of scope
 

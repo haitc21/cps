@@ -15,7 +15,9 @@ _ROLE_ALIASES: dict[str, str] = {
 }
 
 
-def normalize_cmp_roles(raw_roles: list[str] | tuple[str, ...] | set[str]) -> frozenset[str]:
+def normalize_cmp_roles(
+    raw_roles: list[str] | tuple[str, ...] | set[str] | frozenset[str],
+) -> frozenset[str]:
     """Map deployed Keycloak role aliases to canonical CPS roles."""
     canonical: set[str] = set()
     for role in raw_roles:
@@ -27,6 +29,11 @@ def normalize_cmp_roles(raw_roles: list[str] | tuple[str, ...] | set[str]) -> fr
 
 def extract_cmp_roles(claims: dict[str, Any], client_id: str) -> frozenset[str]:
     """Read client roles from ``resource_access[client_id].roles``."""
+    return normalize_cmp_roles(extract_client_roles(claims, client_id))
+
+
+def extract_client_roles(claims: dict[str, Any], client_id: str) -> frozenset[str]:
+    """Return the exact verified client-role names without alias expansion."""
     resource_access = claims.get("resource_access")
     if not isinstance(resource_access, dict):
         return frozenset()
@@ -37,7 +44,7 @@ def extract_cmp_roles(claims: dict[str, Any], client_id: str) -> frozenset[str]:
     if not isinstance(raw_roles, list):
         return frozenset()
     role_names = [role for role in raw_roles if isinstance(role, str)]
-    return normalize_cmp_roles(role_names)
+    return frozenset(role_names)
 
 
 def has_member_access(roles: frozenset[str]) -> bool:

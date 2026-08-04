@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from cps.api.prefixes import ADMIN_API_PREFIX, MEMBER_API_PREFIX
 from cps.main import create_app
+from cps.security.auth.middleware import ORG_SCOPE_HEADER, WS_SCOPE_HEADER
 
 _ADMIN_PATHS = frozenset(
     {
@@ -90,3 +91,50 @@ def test_openapi_tags_identify_admin_and_member_surfaces() -> None:
     assert paths["/api/v1/operations"]["get"]["tags"] == ["Operations"]
     assert paths["/api/v1/admin/operations"]["get"]["tags"] == ["Admin Operations"]
     assert paths["/api/v1/{resource_type}"]["get"]["tags"] == ["Inventory"]
+
+
+def _header_names(operation: dict[str, object]) -> set[str]:
+    parameters = operation.get("parameters", [])
+    if not isinstance(parameters, list):
+        return set()
+    names: set[str] = set()
+    for parameter in parameters:
+        if isinstance(parameter, dict) and parameter.get("in") == "header":
+            name = parameter.get("name")
+            if isinstance(name, str):
+                names.add(name)
+    return names
+
+
+def test_member_openapi_operations_declare_scope_headers() -> None:
+    paths = create_app().openapi()["paths"]
+    member_operations = [
+        operation
+        for path, operations in paths.items()
+        if path.startswith(f"{MEMBER_API_PREFIX}/") and not path.startswith(f"{ADMIN_API_PREFIX}/")
+        for operation in operations.values()
+        if isinstance(operation, dict)
+    ]
+
+    assert member_operations
+    for operation in member_operations:
+        headers = _header_names(operation)
+        assert ORG_SCOPE_HEADER in headers
+        assert WS_SCOPE_HEADER in headers
+
+
+def test_admin_openapi_operations_do_not_declare_scope_headers() -> None:
+    paths = create_app().openapi()["paths"]
+    admin_operations = [
+        operation
+        for path, operations in paths.items()
+        if path.startswith(f"{ADMIN_API_PREFIX}/")
+        for operation in operations.values()
+        if isinstance(operation, dict)
+    ]
+
+    assert admin_operations
+    for operation in admin_operations:
+        headers = _header_names(operation)
+        assert ORG_SCOPE_HEADER not in headers
+        assert WS_SCOPE_HEADER not in headers

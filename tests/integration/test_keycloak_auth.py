@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -26,6 +27,8 @@ MEMBER_PASSWORD = os.getenv(  # pragma: allowlist secret
     "CPS_TEST_KEYCLOAK_MEMBER_PASSWORD",
     "Vnpost@1",
 )
+SCOPE_ORG_ID = os.getenv("CPS_TEST_SCOPE_ORG_ID")
+SCOPE_WS_ID = os.getenv("CPS_TEST_SCOPE_WS_ID")
 
 
 def _integration_enabled() -> bool:
@@ -40,6 +43,12 @@ def _require_keycloak() -> None:
         response.raise_for_status()
     except httpx.HTTPError as exc:
         pytest.skip(f"Keycloak unavailable: {exc}")
+
+
+def _require_scope_ids() -> None:
+    _require_keycloak()
+    if not SCOPE_ORG_ID or not SCOPE_WS_ID:
+        pytest.skip("scope IDs not configured; set CPS_TEST_SCOPE_ORG_ID and CPS_TEST_SCOPE_WS_ID")
 
 
 def _fetch_token(username: str, password: str) -> str:
@@ -74,13 +83,20 @@ def _auth_settings() -> Settings:
     )
 
 
-def _integration_client(settings: Settings) -> TestClient:
+def _integration_client(
+    settings: Settings,
+    *,
+    tms_authorizer: AsyncMock | None = None,
+) -> TestClient:
     verifier = create_keycloak_verifier(settings)
+    authorizer = tms_authorizer or AsyncMock(return_value=True)
     app = FastAPI()
     app.state.settings = settings
     app.add_middleware(
         KeycloakAuthMiddleware,
         verifier=verifier,
+        tms_authorizer=authorizer,
+        app_owner=settings.app_owner,
     )
     app.add_middleware(CorrelationIdMiddleware)
 
@@ -93,6 +109,14 @@ def _integration_client(settings: Settings) -> TestClient:
         return {"scope": "admin"}
 
     return TestClient(app, raise_server_exceptions=False)
+
+
+def _scope_headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-Org-ID": SCOPE_ORG_ID,
+        "X-WS-ID": SCOPE_WS_ID,
+    }
 
 
 @pytest.mark.integration
@@ -122,10 +146,10 @@ def test_member_token_is_rejected_for_admin_api() -> None:
 
 @pytest.mark.integration
 def test_member_token_can_call_member_api() -> None:
-    _require_keycloak()
+    _require_scope_ids()
     token = _fetch_token(MEMBER_USER, MEMBER_PASSWORD)
     client = _integration_client(_auth_settings())
 
-    response = client.get("/api/v1/member-probe", headers={"Authorization": f"Bearer {token}"})
+    response = client.get("/api/v1/member-probe", headers=_scope_headers(token))
 
     assert response.status_code == 200

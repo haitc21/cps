@@ -54,5 +54,42 @@ def test_principal_exposes_canonical_roles_only() -> None:
         client_id="cmp",
     )
     assert principal.roles == frozenset({"admin"})
+    assert principal.client_roles == frozenset({"admin:admin"})
     assert principal.is_admin() is True
     assert principal.can_access_member_routes() is False
+
+
+def test_route_access_uses_exact_deployed_client_roles() -> None:
+    admin = AuthenticatedPrincipal.from_claims(
+        {
+            "sub": "admin-user",
+            "resource_access": {"cmp": {"roles": ["admin:admin", "member"]}},
+        },
+        client_id="cmp",
+    )
+    legacy_admin_alias = AuthenticatedPrincipal.from_claims(
+        {
+            "sub": "legacy-admin",
+            "resource_access": {"cmp": {"roles": ["admin"]}},
+        },
+        client_id="cmp",
+    )
+
+    assert admin.can_access_admin_routes() is True
+    assert admin.can_access_member_routes() is True
+    assert legacy_admin_alias.can_access_admin_routes() is False
+
+
+def test_principal_preserves_verified_owner_identity_claims() -> None:
+    principal = AuthenticatedPrincipal.from_claims(
+        {
+            "sub": "owner-user",
+            "email": "admin@vnpost.vn",
+            "preferred_username": "admin@vnpost.vn",
+            "resource_access": {"cmp": {"roles": []}},
+        },
+        client_id="cmp",
+    )
+
+    assert principal.email == "admin@vnpost.vn"
+    assert principal.is_app_owner("admin@vnpost.vn") is True

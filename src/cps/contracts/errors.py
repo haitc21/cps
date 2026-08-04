@@ -211,3 +211,11 @@ class AuthorizationError(DomainError):
             category=self.category,
             retryable=self.retryable,
         )
+
+
+class AuthorizationServiceUnavailableError(DomainError):
+    status_code = 503
+    code = "AUTHORIZATION_SERVICE_UNAVAILABLE"
+    category = ErrorCategory.AUTHORIZATION
+    retryable = True
+    default_public_message = "Authorization service unavailable"

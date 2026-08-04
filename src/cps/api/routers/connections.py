@@ -18,7 +18,11 @@ from cps.application.connections import ConnectionService
 from cps.contracts.api_response import BaseResponse, PagedData
 from cps.infrastructure.db.models.enums import ConnectionStatus
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
-from cps.security.auth.middleware import require_admin, require_member
+from cps.security.auth.middleware import (
+    document_member_scope_headers,
+    require_admin,
+    require_member,
+)
 
 admin_router = APIRouter(
     tags=["Admin Provider Connections"],
@@ -26,7 +30,7 @@ admin_router = APIRouter(
 )
 member_router = APIRouter(
     tags=["Provider Connections"],
-    dependencies=[Depends(require_member)],
+    dependencies=[Depends(require_member), Depends(document_member_scope_headers)],
 )
 
 

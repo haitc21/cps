@@ -52,9 +52,16 @@ from cps.contracts.messages.volume_snapshot_operations import VolumeSnapshotOper
 from cps.identifiers import new_uuid7
 from cps.infrastructure.db.models.enums import OperationState
 from cps.infrastructure.db.unit_of_work import SqlAlchemyUnitOfWork
-from cps.security.auth.middleware import require_admin, require_member
+from cps.security.auth.middleware import (
+    document_member_scope_headers,
+    require_admin,
+    require_member,
+)
 
-member_router = APIRouter(tags=["Operations"], dependencies=[Depends(require_member)])
+member_router = APIRouter(
+    tags=["Operations"],
+    dependencies=[Depends(require_member), Depends(document_member_scope_headers)],
+)
 admin_router = APIRouter(tags=["Admin Operations"], dependencies=[Depends(require_admin)])
 
 

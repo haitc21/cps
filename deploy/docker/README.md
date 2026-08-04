@@ -53,6 +53,16 @@ CPS_RABBITMQ_URL=amqp://cmp:cmp_dev_password@127.0.0.1:5672/cmp
 
 CPS readiness (`/health/ready`) depends on PostgreSQL and RabbitMQ only.
 
+## TMS scope authorization (CPS-1203)
+
+This stack does **not** include Keycloak or TMS. It is the CPS+OPS dependency
+stack only; `APP_OWNER`, `CPS_TMS_BASE_URL`, and TMS outage verification are
+**not** wired here by design.
+
+For full-stack auth and TMS membership live verification, use the repository
+root compose at `deploy/docker/docker-compose.yml` (Keycloak, TMS, BMS, LMS,
+and the shared `x-cps-environment` block with `APP_OWNER` / `CPS_TMS_BASE_URL`).
+
 ## Stop
 
 ```bash
