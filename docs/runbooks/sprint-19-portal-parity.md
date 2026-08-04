@@ -80,4 +80,5 @@ scope-policy decision, and final re-review.
   CPS/OPS-1906 Done. The live CPS/OpenStack comparison is recorded with fresh
   direct-host probe evidence and provider request evidence.
 - Implementation commits are task-scoped, but acceptance remains deferred;
-  pushed refs are intentionally absent.
+  CPS commit is `0a68e15` and OPS commit is `bc106c2`; pushed refs are
+  intentionally absent.
