@@ -1,6 +1,6 @@
 # CPS-1906 — Horizon parity contract and presentation API
 
-**Status:** Planned  
+**Status:** Deferred — implementation committed; TMS integration and OpenStack scope-policy closure pending  
 **Points:** 8  
 **Paired task:** OPS-1906
 

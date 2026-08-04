@@ -86,6 +86,7 @@ _CATALOG_TYPED_FIELDS: dict[type[Any], tuple[str, ...]] = {
 _CATALOG_ATTRIBUTE_FIELDS: dict[type[Any], tuple[str, ...]] = {
     Image: (
         "catalog_approved",
+        "is_public",
         "is_protected",
         "container_format",
         "virtual_size_bytes",
@@ -254,6 +255,12 @@ class InventoryRepository:
         *,
         offset: int,
         limit: int,
+        name: str | None = None,
+        status: str | None = None,
+        visibility: str | None = None,
+        sort: str = "name",
+        order: str = "asc",
+        member_scope: bool = False,
     ) -> tuple[list[Any], int]:
         resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
         model = RESOURCE_MODELS.get(resource_type)
@@ -264,6 +271,47 @@ class InventoryRepository:
             model.lifecycle_state != "DELETED",
             model.provider_attributes["catalog_approved"].as_boolean().is_(True),
         ]
+        if name is not None:
+            escaped_name = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            filters.append(model.name.ilike(f"%{escaped_name}%", escape="\\"))
+        if status is not None:
+            filters.append(sa.func.lower(model.provider_status) == status.strip().lower())
+        if visibility is not None and hasattr(model, "visibility"):
+            filters.append(model.visibility == visibility)
+        if member_scope:
+            scope_project = await self._session.scalar(
+                select(ProviderConnection.scope_project_provider_resource_id).where(
+                    ProviderConnection.id == provider_connection_id,
+                    ProviderConnection.scope_kind == "PROJECT",
+                )
+            )
+            if not scope_project:
+                filters.append(sa.false())
+            elif model is Image:
+                filters.append(
+                    sa.or_(
+                        model.visibility.in_(("public", "community")),
+                        sa.and_(
+                            model.visibility == "private",
+                            model.project_provider_resource_id == scope_project,
+                        ),
+                        sa.and_(
+                            model.visibility == "shared",
+                            model.provider_attributes["access_project_ids"].contains(
+                                [scope_project]
+                            ),
+                        ),
+                    )
+                )
+            elif model is Flavor:
+                filters.append(
+                    sa.or_(
+                        model.is_public.is_(True),
+                        model.provider_attributes["access_project_ids"].contains([scope_project]),
+                    )
+                )
+            else:
+                filters.append(sa.false())
         total = int(
             (
                 await self._session.execute(select(func.count()).select_from(model).where(*filters))
@@ -272,7 +320,20 @@ class InventoryRepository:
         result = await self._session.execute(
             select(model)
             .where(*filters)
-            .order_by(model.name.asc(), model.id.asc())
+            .order_by(
+                {
+                    "name": model.name,
+                    "created_at": model.created_at,
+                    "updated_at": model.updated_at,
+                }.get(sort, model.name).asc()
+                if order == "asc"
+                else {
+                    "name": model.name,
+                    "created_at": model.created_at,
+                    "updated_at": model.updated_at,
+                }.get(sort, model.name).desc(),
+                model.id.asc() if order == "asc" else model.id.desc(),
+            )
             .offset(offset)
             .limit(limit)
         )
@@ -283,20 +344,54 @@ class InventoryRepository:
         resource_type: str,
         provider_connection_id: uuid.UUID,
         resource_id: uuid.UUID,
+        member_scope: bool = False,
     ) -> Any | None:
         """Return one live, explicitly approved curated resource."""
         resource_type = RESOURCE_ALIASES.get(resource_type, resource_type)
         model = RESOURCE_MODELS.get(resource_type)
         if model is None:
             raise InventoryPersistenceError("unsupported inventory resource type")
-        result = await self._session.execute(
-            select(model).where(
-                model.id == resource_id,
-                model.provider_connection_id == provider_connection_id,
-                model.lifecycle_state != "DELETED",
-                model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+        filters = [
+            model.id == resource_id,
+            model.provider_connection_id == provider_connection_id,
+            model.lifecycle_state != "DELETED",
+            model.provider_attributes["catalog_approved"].as_boolean().is_(True),
+        ]
+        if member_scope:
+            scope_project = await self._session.scalar(
+                select(ProviderConnection.scope_project_provider_resource_id).where(
+                    ProviderConnection.id == provider_connection_id,
+                    ProviderConnection.scope_kind == "PROJECT",
+                )
             )
-        )
+            if not scope_project:
+                filters.append(sa.false())
+            elif model is Image:
+                filters.append(
+                    sa.or_(
+                        model.visibility.in_(("public", "community")),
+                        sa.and_(
+                            model.visibility == "private",
+                            model.project_provider_resource_id == scope_project,
+                        ),
+                        sa.and_(
+                            model.visibility == "shared",
+                            model.provider_attributes["access_project_ids"].contains(
+                                [scope_project]
+                            ),
+                        ),
+                    )
+                )
+            elif model is Flavor:
+                filters.append(
+                    sa.or_(
+                        model.is_public.is_(True),
+                        model.provider_attributes["access_project_ids"].contains([scope_project]),
+                    )
+                )
+            else:
+                filters.append(sa.false())
+        result = await self._session.execute(select(model).where(*filters))
         return result.scalar_one_or_none()
 
     async def mark_resource_deleted(

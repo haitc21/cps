@@ -38,7 +38,7 @@ the OpenStack CLI.
 | CPS-1903 Image metadata, access, and lifecycle | 13 | CPS | OPS-1903 | Done |
 | CPS-1904 Instance image snapshot and consumer integration | 5 | CPS | OPS-1904 | Done |
 | CPS-1905 Cross-service acceptance and release evidence | 3 | CPS/OPS | OPS-1905 | Done (waived restart/failure path) |
-| CPS-1906 Horizon parity contract and presentation API | 8 | CPS | OPS-1906 | Planned |
+| CPS-1906 Horizon parity contract and presentation API | 8 | CPS | OPS-1906 | Deferred — implementation committed; TMS/scope-policy closure pending |
 | CPS-1907 Flavor and image administration parity closure | 13 | CPS | OPS-1907 | Planned |
 | CPS-1908 API and provider live parity acceptance | 8 | CPS/OPS | OPS-1908 | Planned |
 
@@ -51,7 +51,7 @@ the OpenStack CLI.
 | [CPS-1903](../tasks/sprint-19/CPS-1903-image-lifecycle.md) | Durable image metadata/import/member/state/delete operations | CPS-1901 | Done |
 | [CPS-1904](../tasks/sprint-19/CPS-1904-instance-image-integration.md) | Instance snapshot plus launch/rebuild/volume compatibility checks | CPS-1901, CPS-1903 | Done |
 | [CPS-1905](../tasks/sprint-19/CPS-1905-catalog-acceptance.md) | Real-cloud matrix, runbooks, checksums, and cleanup | CPS-1902..1904 | Done (waived restart/failure path) |
-| [CPS-1906](../tasks/sprint-19/CPS-1906-horizon-parity-contract.md) | Stable consumer-facing query/detail/operation contracts and Horizon provenance matrix | CPS-1901..1905 | Planned |
+| [CPS-1906](../tasks/sprint-19/CPS-1906-horizon-parity-contract.md) | Stable consumer-facing query/detail/operation contracts and Horizon provenance matrix | CPS-1901..1905 | Deferred — implementation committed; TMS/scope-policy closure pending |
 | [CPS-1907](../tasks/sprint-19/CPS-1907-admin-parity-closure.md) | Close flavor/image administration gaps without unsafe flavor replacement or image byte transport | CPS-1906 | Planned |
 | [CPS-1908](../tasks/sprint-19/CPS-1908-portal-live-acceptance.md) | Cross-service API/provider acceptance, recovery, cleanup, and release evidence | CPS-1907 | Planned |
 
